@@ -207,6 +207,32 @@ tbody.prep tr:hover td{background:transparent}
 .evrow select{flex:0 1 420px;min-width:0;max-width:100%;font:inherit;font-size:16px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
 .evrow select:hover{border-color:var(--accent)}
 .evrow select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* スケジュール */
+.views>.tabs{flex-wrap:wrap}
+@media (max-width:480px){.views>.tabs .tab{padding-inline:9px}}
+.sscroll{overflow-x:auto;min-width:0;border:1px solid var(--line);border-radius:8px}
+.stb{min-width:600px;font-size:14px}
+.stb th{background:var(--bg);font-size:11px;padding:7px 10px}
+.stb td{padding:8px 10px}
+.stb tbody tr:hover td{background:transparent}
+.stb tbody.sday tr:last-child td{border-bottom:1px solid var(--line)}
+.stb tbody.sday:last-child tr:last-child td{border-bottom:0}
+.stb td.srd{border-bottom:1px solid var(--line)}
+.stb td.srd.lastrd{border-bottom:0}
+.stb .sdh td{text-align:left;background:var(--accent-soft);font-size:13px;padding:6px 10px;border-top:1px solid var(--line)}
+.stb tbody.sday:first-of-type .sdh td{border-top:0}
+.stb .sdh b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+.sbadge{display:inline-block;margin-left:10px;padding:0 8px;border-radius:999px;background:var(--accent);color:var(--surface);font-size:11px;font-weight:700;line-height:1.7}
+.stb td.srd{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--muted);vertical-align:top;width:5em}
+.stb td.stbl{font-family:"IBM Plex Mono","Zen Kaku Gothic New",monospace;font-weight:600;color:var(--accent);width:4em}
+.stb td.stbl.rest,.stb td.rest{color:var(--muted);font-weight:400}
+.stb td.st{font-weight:500}
+.stb td.st small{display:block;font-size:10px;font-weight:400;color:var(--muted);line-height:1.3}
+.stb td.st.tbd{color:var(--muted);font-weight:400}
+.stb td.st.on,.stb tbody tr:hover td.st.on,.stb td.rest.on{background:var(--accent);color:var(--surface);font-weight:700}
+.stb td.st.on small{color:var(--surface)}
+.chartbox>.chead>.chint[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -238,6 +264,7 @@ tbody.prep tr:hover td{background:transparent}
     <button class="tab" role="tab" id="tabTeam" aria-selected="true">チーム順位</button>
     <button class="tab" role="tab" id="tabPlayer" aria-selected="false">個人順位</button>
     <button class="tab" role="tab" id="tabChart" aria-selected="false">順位グラフ</button>
+    <button class="tab" role="tab" id="tabSched" aria-selected="false">スケジュール</button>
   </div>
 </div>
 </div>
@@ -283,7 +310,16 @@ tbody.prep tr:hover td{background:transparent}
   <div class="cteams" id="cteams" role="group" aria-label="強調するチーム"></div>
   <div class="cscroll" id="cscroll"><div class="cplot" id="cplot"><svg id="csvg" role="img" tabindex="0"></svg><div class="ctip" id="ctip" hidden></div></div></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。</footer>
+<section class="chartbox" id="boxS" hidden aria-labelledby="sch">
+  <div class="chead">
+    <h2 id="sch">対局スケジュール</h2>
+    <p class="chint" id="sinfo"></p>
+  </div>
+  <p class="empty" id="sempty" hidden></p>
+  <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
+  <div class="sscroll" id="sscroll"><table class="stb" id="stb"></table></div>
+</section>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、対局スケジュール作成ツールで作ったCSVを、回戦ごとに表示する。</footer>
 
 </div>
 
@@ -394,12 +430,13 @@ function show(){
   $("tabTeam").setAttribute("aria-selected",TAB==="team");
   $("tabPlayer").setAttribute("aria-selected",TAB==="player");
   $("tabChart").setAttribute("aria-selected",TAB==="chart");
-  $("boxT").hidden=TAB!=="team";$("boxP").hidden=TAB!=="player";$("boxC").hidden=TAB!=="chart";
-  $("tools").hidden=TAB==="chart";     // 検索と着順の凡例は、順位表のときだけ
+  $("tabSched").setAttribute("aria-selected",TAB==="schedule");
+  $("boxT").hidden=TAB!=="team";$("boxP").hidden=TAB!=="player";$("boxC").hidden=TAB!=="chart";$("boxS").hidden=TAB!=="schedule";
+  $("tools").hidden=TAB==="chart"||TAB==="schedule";     // 検索と着順の凡例は、順位表のときだけ
   const parts=[]; if(CUR!==MONTHS[0])parts.push(CUR); if(LG!==lastLeague(SEASONS.get(CUR)))parts.push("L"+(LG+1)); if(TAB!=="team")parts.push(TAB);
   const h=parts.join("-");
   try{history.replaceState(null,"",h?"#"+h:location.pathname+location.search)}catch(e){}
-  if(TAB==="chart")renderChart(); else render();
+  if(TAB==="chart")renderChart(); else if(TAB==="schedule")renderSched(); else render();
 }
 const bar=d=>`<div class="bar">${d.r.map(c=>`<span style="width:${d.n?c/d.n*100:0}%"></span>`).join("")}</div><div class="counts">${d.r.join(" / ")}</div>`;
 const rankCell=d=>NOGAMES?"—":d.rank<=3?`<span class="medal m${d.rank}">${d.rank}</span>`:d.rank;   // 対局前は順位を付けない
@@ -572,6 +609,65 @@ $("cteams").addEventListener("click",e=>{const b=e.target.closest(".tchip");if(b
 let rzT=0;
 window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(TAB==="chart"&&HIST)drawChart()},120)});
 
+/* ---------- スケジュール ----------
+   対局スケジュール作成ツール(event-schedule)のCSVを、回戦ごとの表にする。
+   2次以降のリーグは「予選1位」のような順位の枠で作られている。前のリーグが終わっていれば、枠に実際のチーム名を入れる。 */
+let SPIN=null;                                            // 強調しているチーム名(なければ null)
+const WDAY="日月火水木金土";
+const dayLabel=d=>{const t=new Date(Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10)));return `${t.getUTCMonth()+1}/${t.getUTCDate()}(${WDAY[t.getUTCDay()]})`};
+/* このリーグのスケジュール。リーグ名で探し、名前が合わなければ並び順で探す */
+function schedOf(S,k){
+  if(!S.sched)return null;
+  return S.sched.get(S.leagues[k].name)||(S.sched.has(S.leagues[k].name)?null:[...S.sched.values()][k])||null;
+}
+const plannedGames=L=>L.rounds.reduce((x,r)=>x+r.tables.length,0);
+/* リーグ k が終わったか。次のリーグの対局記録があるか、スケジュールにある対局の数だけ対局記録があれば、終わったとみなす */
+function finished(S,k){
+  if(S.files[k+1]&&S.files[k+1].length)return true;
+  const L=schedOf(S,k);
+  return !!L&&S.files[k].length>0&&S.files[k].length>=plannedGames(L);
+}
+/* 順位の枠(「予選1位」など)→ 実際のチーム名。前のリーグが終わっていなければ null */
+function slotNames(S,k){
+  if(!k||!S.roster||!finished(S,k-1))return null;
+  const prev=S.leagues[k-1].name;
+  return new Map(leagueOf(S,k-1).teams.slice(0,S.leagues[k].teams).map((t,i)=>[`${prev}${i+1}位`,t.name]));
+}
+function renderSched(){
+  const S=SEASONS.get(CUR),L=schedOf(S,LG),none=!L||!L.rounds.length;
+  $("sempty").hidden=!none;$("sempty").textContent="🀄スケジュール準備中🀄";
+  ["steams","sscroll","sinfo"].forEach(id=>$(id).hidden=none);
+  if(none)return;
+  const map=slotNames(S,LG),nm=x=>map&&map.get(x)||x,slot=x=>map&&map.has(x)?x:"";
+  const names=L.teams.map(nm);
+  if(!names.includes(SPIN))SPIN=null;
+  const dated=L.rounds.filter(r=>r.date).map(r=>r.date),days=[...new Set(dated)].sort();
+  const info=[`${L.rounds.length}回戦`];
+  if(days.length)info.push(`${days.length}日間 ${dayLabel(days[0])}`+(days.length>1?`〜${dayLabel(days[days.length-1])}`:""));
+  if(L.wdays)info.push(`開催曜日 ${L.wdays}`);
+  if(L.perDay)info.push(`1日${L.perDay}試合`);
+  $("sinfo").textContent=info.join("・")+"。チーム名を押すと、そのチームの卓を強調する。"+
+    (LG&&S.roster?(map?`「${S.leagues[LG-1].name}1位」などの枠には、${S.leagues[LG-1].name}の順位で決まったチームを入れている。`:`${S.leagues[LG-1].name}が終わるまでは、「${S.leagues[LG-1].name}1位」のような順位の枠で表示する。`):"");
+  $("steams").innerHTML=names.map((n,i)=>`<button type="button" class="tchip" data-s="${i}" aria-pressed="${n===SPIN}">${esc(n)}</button>`).join("");
+  /* 今日か、今日より後で最初の開催日に印を付ける */
+  const now=new Date(),today=`${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`,next=days.find(d=>d>=today)||"";
+  const cell=x=>{const n=nm(x),s=slot(x);return `<td class="l st${n===SPIN?" on":""}${LG&&!map?" tbd":""}"><span>${esc(n)}</span>${s?`<small>${esc(s)}</small>`:""}</td>`};
+  let html=`<thead><tr><th class="l">回戦</th><th class="l">卓</th>${["東","南","西","北"].map(x=>`<th class="l">${x}家</th>`).join("")}</tr></thead>`,prev=null;
+  L.rounds.forEach((rd,r)=>{
+    if(r===0||rd.date!==prev){
+      html+=(r?"</tbody>":"")+`<tbody class="sday">`+(rd.date?`<tr class="sdh"><td colspan="6"><b>${dayLabel(rd.date)}</b>${rd.date===next?`<span class="sbadge">${next===today?"本日":"次回"}</span>`:""}</td></tr>`:"");
+      prev=rd.date;
+    }
+    const rows=rd.tables.length+(rd.rest.length?1:0);
+    rd.tables.forEach(([tb,seats],ti)=>{
+      html+=`<tr>${ti?"":`<td class="l srd${r===L.rounds.length-1?" lastrd":""}" rowspan="${rows}">第${rd.no}戦</td>`}<td class="l stbl">${esc(tb)}卓</td>${seats.map(x=>x==null?'<td class="l st tbd">—</td>':cell(x)).join("")}</tr>`;
+    });
+    if(rd.rest.length) html+=`<tr>${rd.tables.length?"":`<td class="l srd">第${rd.no}戦</td>`}<td class="l stbl rest">抜け番</td><td class="l rest${rd.rest.some(x=>nm(x)===SPIN)?" on":""}" colspan="4">${rd.rest.map(x=>esc(nm(x))).join("、")}</td></tr>`;
+  });
+  $("stb").innerHTML=html+"</tbody>";
+}
+$("steams").addEventListener("click",e=>{const b=e.target.closest(".tchip");if(!b)return;const n=b.textContent;SPIN=SPIN===n?null:n;renderSched()});
+
 /* CSV 読み込み */
 function parseCSV(text){
   const rows=[];let row=[],cell="",q=false;
@@ -629,6 +725,37 @@ function toRoster(text){
     return {name:(name||"").trim(),teams:Math.floor(+teams)||0,carry:Math.max(0,Math.min(100,+carry||0))}}).filter(l=>l.name);
   return R;
 }
+/* スケジュールのCSV(対局スケジュール作成ツール event-schedule の出力)。1行が1チーム。
+   「リーグ」「チーム」と「第1戦」「第2戦」…の列を使う。各回戦の欄は「2026-09-05(土) A卓 東」または「2026-09-05(土) 抜け番」(日付は無くてもよい)。
+   リーグ名 → {name,teams:[枠またはチーム名],wdays,perDay,rounds:[{no,date,tables:[[卓,[東,南,西,北]]],rest:[]}]} を返す */
+function toSchedule(text){
+  const rows=parseCSV(text.replace(/^﻿/,""));
+  if(rows.length<2) throw new Error("スケジュールにデータ行がない。");
+  const h=rows[0].map(s=>s.trim()),cl=h.indexOf("リーグ"),ct=h.indexOf("チーム"),cw=h.indexOf("開催曜日"),cp=h.indexOf("1日の試合数");
+  const rc=h.map((x,i)=>{const m=x.match(/^第(\d+)戦$/);return m?[i,+m[1]]:null}).filter(Boolean);
+  if(ct<0||!rc.length) throw new Error("スケジュールに「チーム」「第1戦」の列がない。");
+  const M=new Map();
+  rows.slice(1).forEach((r,k)=>{
+    const lg=cl>=0?(r[cl]||"").trim():"",team=(r[ct]||"").trim(); if(!team)return;
+    let L=M.get(lg); if(!L){L={name:lg,teams:[],wdays:cw>=0?(r[cw]||"").trim():"",perDay:cp>=0?parseInt(r[cp])||0:0,rd:new Map()};M.set(lg,L)}
+    L.teams.push(team);
+    for(const [c,no] of rc){
+      const v=(r[c]||"").trim(); if(!v)continue;
+      const m=v.match(/^(?:(\d{4}-\d\d-\d\d)(?:\([^)]*\))?\s+)?(?:([A-Z])卓\s*([東南西北])|抜け番)$/);
+      if(!m) throw new Error(`${k+2}行目の第${no}戦「${v}」が読めない。`);
+      let rd=L.rd.get(no); if(!rd){rd={no,date:"",tb:new Map(),rest:[]};L.rd.set(no,rd)}
+      if(m[1])rd.date=m[1];
+      if(m[2]){let t=rd.tb.get(m[2]);if(!t){t=[null,null,null,null];rd.tb.set(m[2],t)} t["東南西北".indexOf(m[3])]=team}
+      else rd.rest.push(team);
+    }
+  });
+  for(const L of M.values()){
+    L.rounds=[...L.rd.values()].sort((a,b)=>a.no-b.no).map(rd=>({no:rd.no,date:rd.date,rest:rd.rest,tables:[...rd.tb.entries()].sort((a,b)=>a[0]<b[0]?-1:1)}));
+    delete L.rd;
+  }
+  if(!M.size) throw new Error("スケジュールにチームの入った行がない。");
+  return M;
+}
 function decode(buf){
   try{return new TextDecoder("utf-8",{fatal:true}).decode(buf)}catch(e){return new TextDecoder("shift_jis").decode(buf)}
 }
@@ -638,6 +765,7 @@ function fail(msg){$("tT").querySelectorAll("tbody").forEach(x=>x.remove());$("t
    データ用リポジトリ(DATA_REPO)に、1大会につき2つのCSVを置く。YYYYMMXX は 開始年4桁+開始月2桁+枝番2桁。
      YYYYMMXX.csv         … チーム表(チーム表作成ページ event-create の出力)
      YYYYMMXX-games1.csv  … 1次リーグの対局記録(雀魂の「牌譜履歴」)。2次リーグは -games2.csv、以降も同じ
+     YYYYMMXX-schedule.csv … 対局スケジュール(対局スケジュール作成ツール event-schedule の出力)。無くてもよい
    リポジトリ名を変えたら、ここも変える。フォルダに入れるなら DATA_DIR を "フォルダ名/" にする。 */
 const DATA_REPO="event-data";
 const DATA_DIR="";
@@ -697,7 +825,10 @@ async function loadSeason(key){
   if(t.ok) try{roster=toRoster(decode(await t.arrayBuffer()))}
   catch(err){console.warn(key,err);BAD.push(`${key}.csv(${err.message})`)}
   const leagues=roster&&roster.leagues.length?roster.leagues:[{name:"",teams:0,carry:0}];
-  const res=await Promise.all(leagues.map((_,k)=>get(`${key}-games${k+1}.csv`)));
+  const [sc,...res]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`))]);
+  let sched=null;
+  if(sc.ok) try{sched=toSchedule(decode(await sc.arrayBuffer()))}
+  catch(err){console.warn(key,err);BAD.push(`${key}-schedule.csv(${err.message})`)}
   const files=[],seen=new Set();
   for(let k=0;k<leagues.length;k++){
     let g=[];
@@ -705,7 +836,7 @@ async function loadSeason(key){
     catch(err){console.warn(key,err);BAD.push(`${key}-games${k+1}.csv(${err.message})`)}
     files[k]=g.filter(x=>{const id=x[2]||x[0]+"/"+x[1].map(v=>v[0]).join(); if(seen.has(id))return false; seen.add(id);return true});
   }
-  return roster||files.some(g=>g.length)?{roster,leagues,files,L:[]}:null;
+  return roster||files.some(g=>g.length)?{roster,leagues,files,sched,L:[]}:null;
 }
 (async()=>{
   const listed=await listByApi();
@@ -717,7 +848,7 @@ async function loadSeason(key){
   if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001.csv、対局記録を 20261001-games1.csv のような名前で置いてほしい。`);return}
   $("month").innerHTML=MONTHS.map(k=>`<option value="${k}">${esc(evTitle(k)?`${evTitle(k)}(${ymLabel(k)})`:`${ymLabel(k)}のチーム戦 枝番${k.slice(6)}`)}</option>`).join("");
   $("past").hidden=MONTHS.length<2;
-  const m=location.hash.slice(1).match(/^(\d{8})?-?(?:L(\d))?-?(player|chart)?$/)||[];
+  const m=location.hash.slice(1).match(/^(\d{8})?-?(?:L(\d))?-?(player|chart|schedule)?$/)||[];
   const view=SEASONS.has(m[1])?m[1]:MONTHS[0];
   load(view,m[3]||(SEASONS.get(view).roster?"team":"player"),m[2]?+m[2]-1:null);
   if(BAD.length) console.warn("読めなかったCSV:",BAD);
@@ -725,6 +856,7 @@ async function loadSeason(key){
 $("tabTeam").addEventListener("click",()=>{if(CUR){TAB="team";show()}});
 $("tabPlayer").addEventListener("click",()=>{if(CUR){TAB="player";show()}});
 $("tabChart").addEventListener("click",()=>{if(CUR){TAB="chart";show()}});
+$("tabSched").addEventListener("click",()=>{if(CUR){TAB="schedule";show()}});
 $("month").addEventListener("change",e=>e.target.value&&load(e.target.value));
 </script>
 
