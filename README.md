@@ -1,5 +1,7 @@
 # MONOQLO チーム戦ランキング
 
+ページ: https://monoqlo-league.github.io/event-ranking/
+
 MONOQLO麻雀部 チーム戦(イベント戦)ランキングのページ本体(`index.html`)を置くリポジトリ。管理者だけが更新する。
 
 - 集計元のデータは、別リポジトリ **event-data** に置く。
