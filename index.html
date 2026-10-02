@@ -181,10 +181,6 @@ h1 span{display:inline-block}
 .ctip td.p{font-family:"IBM Plex Mono",monospace;text-align:right;padding-left:12px}
 .ctip td.p.plus{color:var(--plus)}.ctip td.p.minus{color:var(--minus)}
 .ctip tr.on td.r,.ctip tr.on td.n{color:var(--ink);font-weight:700}
-.ctable summary{cursor:pointer;font-size:13px;color:var(--muted);width:fit-content}
-.ctable summary:hover{color:var(--ink)}
-.ctable summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
-.ctable .vs{margin-top:8px}
 .chartbox>.empty{margin:0}
 @media (max-width:480px){.chartbox{padding:16px}}
 @media (prefers-reduced-motion:no-preference){.cline,.cdot{transition:stroke .12s,fill .12s}}
@@ -257,9 +253,6 @@ h1 span{display:inline-block}
   <p class="empty" id="cempty" hidden></p>
   <div class="cteams" id="cteams" role="group" aria-label="強調するチーム"></div>
   <div class="cscroll" id="cscroll"><div class="cplot" id="cplot"><svg id="csvg" role="img" tabindex="0"></svg><div class="ctip" id="ctip" hidden></div></div></div>
-  <details class="ctable" id="cdetails"><summary>表で見る</summary>
-    <div class="dtbox"><table class="vs" id="ctbl"></table></div>
-  </details>
 </section>
 <footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が、プレイヤー名を押すと同卓した相手ごとの相性表が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。</footer>
 
@@ -458,12 +451,10 @@ function renderChart(){
   const none=!HIST;
   $("cempty").hidden=!none;
   $("cempty").textContent=!S.roster?"チーム表がないため、順位グラフは出せない。":"対局がまだないため、順位グラフは出せない。";
-  ["cteams","cscroll","cdetails"].forEach(id=>$(id).hidden=none);
+  ["cteams","cscroll"].forEach(id=>$(id).hidden=none);
   if(none)return;
   if(PIN>=T.length)PIN=0;
   $("cteams").innerHTML=T.map(t=>`<button type="button" class="tchip" data-c="${t.i}" aria-pressed="${t.i===PIN}"><b>${t.rank}</b>${esc(t.name)}</button>`).join("");
-  $("ctbl").innerHTML=`<thead><tr><th class="l">チーム</th>${HIST.days.map(d=>`<th>${md(d)}</th>`).join("")}</tr></thead><tbody>`+
-    T.map(t=>`<tr><td class="l" style="font-weight:700">${esc(t.name)}</td>${HIST.ranks[t.i].map(r=>`<td class="num">${r}</td>`).join("")}</tr>`).join("")+"</tbody>";
   drawChart();
 }
 function drawChart(){
@@ -474,9 +465,8 @@ function drawChart(){
   const X=i=>m>1?L+i*(W-L-R)/(m-1):L+(W-L-R)/2, Y=r=>top+(r-1)*rowH;
   GEO={W,H,L,R,top,rowH,X,Y,n,m};
   const hi=HOV!=null?HOV:PIN;
-  // 順位が入れ替わるところを、なめらかな曲線でつなぐ
-  const path=ti=>HIST.ranks[ti].map((r,i)=>{const x=X(i),y=Y(r); if(!i)return `M${x} ${y}`;
-    const x0=X(i-1),y0=Y(HIST.ranks[ti][i-1]),c=(x-x0)/2;return `C${x0+c} ${y0} ${x-c} ${y} ${x} ${y}`}).join("");
+  // 開催日ごとの順位を、直線でつなぐ
+  const path=ti=>HIST.ranks[ti].map((r,i)=>`${i?"L":"M"}${X(i)} ${Y(r)}`).join("");
   const step=m>1?Math.max(1,Math.ceil(46/((W-L-R)/(m-1)))):1;
   let g=`<text class="cax" x="${L-14}" y="${top-16}" text-anchor="end">順位</text>`;
   for(let i=0;i<m;i++){
@@ -494,7 +484,7 @@ function drawChart(){
   g+=`<line class="ccross" id="ccross" x1="0" y1="${top-8}" x2="0" y2="${Y(n)+8}" visibility="hidden"/>`;
   const svg=$("csvg");
   svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("width",W);svg.setAttribute("height",H);
-  svg.setAttribute("aria-label",`チーム順位の推移。${days.length}日分、${n}チーム。強調しているのは ${T[hi].name}。詳しい値は下の表にある。`);
+  svg.setAttribute("aria-label",`チーム順位の推移。${days.length}日分、${n}チーム。強調しているのは ${T[hi].name}。左右の矢印キーで日を、上下の矢印キーでチームを選べる。`);
   svg.innerHTML=g;
   $("cplot").style.width=W+"px";
   showCross();
