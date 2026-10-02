@@ -250,6 +250,10 @@ tbody.prep tr:hover td{background:transparent}
 h1 .tt{position:relative;max-width:100%}
 h1 .tlg{display:block;font-size:.62em;font-weight:700;letter-spacing:.06em;color:var(--accent);margin-top:2px}
 h1 .stamp{position:absolute;right:-18px;top:50%;width:clamp(88px,16vw,116px);height:auto;transform:translateY(-50%) rotate(-12deg);opacity:.9;pointer-events:none}
+
+/* ボーダー(トップ)とのPT差 */
+#tT{min-width:840px}
+td.gap.plus{color:var(--plus)}td.gap.minus{color:var(--minus)}
 </style>
 </head>
 <body>
@@ -294,6 +298,7 @@ h1 .stamp{position:absolute;right:-18px;top:50%;width:clamp(88px,16vw,116px);hei
 <thead><tr>
  <th style="text-align:center">順位</th><th class="l">チーム</th>
  <th><button data-v="team" data-k="pt" class="on">合計PT<span class="arrow">▼</span></button></th>
+ <th id="thGap">ボーダーとの差</th>
  <th><button data-v="team" data-k="n">対局数<span class="arrow">▼</span></button></th>
  <th><button data-v="team" data-k="avg">平均PT<span class="arrow">▼</span></button></th>
  <th><button data-v="team" data-k="ar">平均順位<span class="arrow">▲</span></button></th>
@@ -302,7 +307,7 @@ h1 .stamp{position:absolute;right:-18px;top:50%;width:clamp(88px,16vw,116px);hei
  <th><button data-v="team" data-k="avoid">ラス回避率<span class="arrow">▼</span></button></th>
  <th>着順分布</th>
 </tr></thead>
-<tbody><tr><td colspan="10" class="empty">読み込み中…</td></tr></tbody>
+<tbody><tr><td colspan="11" class="empty">読み込み中…</td></tr></tbody>
 </table>
 </div>
 <div class="tablebox" id="boxP" hidden>
@@ -339,7 +344,7 @@ h1 .stamp{position:absolute;right:-18px;top:50%;width:clamp(88px,16vw,116px);hei
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過圏のチームは圏外でいちばん上のチームとの差、圏外のチームは通過圏でいちばん下のチームとの差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 
 </div>
 
@@ -483,7 +488,7 @@ function show(){
 }
 const bar=d=>`<div class="bar">${d.r.map(c=>`<span style="width:${d.n?c/d.n*100:0}%"></span>`).join("")}</div><div class="counts">${d.r.join(" / ")}</div>`;
 const rankCell=d=>NORANK?"—":d.rank<=3?`<span class="medal m${d.rank}">${d.rank}</span>`:d.rank;   // 順位を付けられないときは —
-const stats=d=>`<td class="pt ${sign(d.pt)}">${f(d.pt,1)}</td>
+const stats=(d,extra="")=>`<td class="pt ${sign(d.pt)}">${f(d.pt,1)}</td>${extra}
 <td class="num">${d.n}</td>
 <td class="num ${sign(d.avg)}">${d.n?f(d.avg,2):"—"}</td>
 <td class="num">${d.n?d.ar.toFixed(2):"—"}</td>
@@ -500,15 +505,26 @@ function render(){
     const L=T.filter(t=>!q||hit(t.name)||t.mem.some(i=>hit(D[i].name))||t.idle.some(hit)).sort(by(KEY.team));
     // 次のリーグがあるとき、合計PT順の表に通過ラインを入れる
     const S=SEASONS.get(CUR),nx=S.leagues[LG+1],cut=nx&&!NORANK&&!q&&KEY.team==="pt"&&nx.teams<T.length?nx.teams:0;
-    const cutRow=cut?`<tbody class="cut"><tr><td colspan="10">通過ライン<span>上位${cut}チームが${esc(nx.name)}へ</span></td></tr></tbody>`:"";
+    /* PTの差の列。最後のリーグはトップとの差。それ以外は通過ライン(ボーダー)との差:
+       通過圏のチームは、圏外でいちばん上のチームとの差(＋)。圏外のチームは、通過圏でいちばん下のチームとの差(−) */
+    const line=nx&&nx.teams<T.length?nx.teams:0;
+    $("thGap").textContent=nx?"ボーダーとの差":"トップとの差";
+    const gap=t=>{
+      if(NORANK||T.length<2)return null;
+      if(!nx)return t.rank===1?null:r1(t.raw-T[0].raw);
+      if(!line)return null;
+      return r1(t.raw-(t.rank<=line?T[line]:T[line-1]).raw);
+    };
+    const gapCell=t=>{const v=gap(t);return v==null?'<td class="num gap">—</td>':`<td class="num gap ${sign(v)}">${f(v,1)}</td>`};
+    const cutRow=cut?`<tbody class="cut"><tr><td colspan="11">通過ライン<span>上位${cut}チームが${esc(nx.name)}へ</span></td></tr></tbody>`:"";
     // 対局前は、表のいちばん上に「対局準備中」と出す(その下に、チームとメンバーを並べる。2次以降のリーグは、持ち越したPTの順位を付ける)
-    const prep=NOGAMES?'<tbody class="prep"><tr><td colspan="10" class="empty">🀄対局準備中🀄</td></tr></tbody>':"";
+    const prep=NOGAMES?'<tbody class="prep"><tr><td colspan="11" class="empty">🀄対局準備中🀄</td></tr></tbody>':"";
     tb.insertAdjacentHTML("beforeend",L.length?prep+L.map(t=>`<tbody class="tg${!NORANK&&t.rank<=3?" top":""}">
 <tr class="trow"><td class="rank">${rankCell(t)}</td>
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
-${stats(t)}</tr>
-<tr class="mem"><td></td><td colspan="9"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
-</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING?esc(waitWord(S,LG)):NOGAMES&&!q?"🀄対局準備中🀄":S.roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
+${stats(t,gapCell(t))}</tr>
+<tr class="mem"><td></td><td colspan="10"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
+</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="11" class="empty">${PENDING?esc(waitWord(S,LG)):NOGAMES&&!q?"🀄対局準備中🀄":S.roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
@@ -865,7 +881,7 @@ function toSchedule(text){
 function decode(buf){
   try{return new TextDecoder("utf-8",{fatal:true}).decode(buf)}catch(e){return new TextDecoder("shift_jis").decode(buf)}
 }
-function fail(msg){$("tT").querySelectorAll("tbody").forEach(x=>x.remove());$("tT").insertAdjacentHTML("beforeend",`<tbody><tr><td colspan="10" class="empty">${esc(msg)}</td></tr></tbody>`);$("meta").innerHTML=""}
+function fail(msg){$("tT").querySelectorAll("tbody").forEach(x=>x.remove());$("tT").insertAdjacentHTML("beforeend",`<tbody><tr><td colspan="11" class="empty">${esc(msg)}</td></tr></tbody>`);$("meta").innerHTML=""}
 
 /* データの置き場所。
    データ用リポジトリ(DATA_REPO)に、1大会につき2つのCSVを置く。YYYYMMXX は 開始年4桁+開始月2桁+枝番2桁。
