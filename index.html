@@ -653,7 +653,8 @@ window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(T
 
 /* ---------- スケジュール ----------
    対局スケジュール作成ツール(event-schedule)のCSVと対局記録から、開催日ごとの卓組を表示する。
-   2次以降のリーグは「予選1位」のような順位の枠で作られている。前のリーグが終わっていれば、枠に実際のチーム名を入れる。 */
+   2次以降のリーグは「予選1位」のような順位の枠で作られている。前のリーグが終わると、枠に実際のチーム名を入れて表示する。
+   前のリーグが終わるまでは、そのリーグのスケジュールは出さない。 */
 let SPIN=null;                                            // 強調しているチーム名(なければ null)
 let SDAY=null;                                            // 表示している開催日(YYYY-MM-DD)。リーグを切り替えたら選び直す
 const WDAY="日月火水木金土";
@@ -664,6 +665,9 @@ function schedOf(S,k){
   return S.sched.get(S.leagues[k].name)||(S.sched.has(S.leagues[k].name)?null:[...S.sched.values()][k])||null;
 }
 const plannedGames=L=>L.rounds.reduce((x,r)=>x+r.tables.length,0);
+/* スケジュールタブに出すスケジュール。2次以降のリーグは、前のリーグが終わったと判断されるまで出さない
+   (出さないあいだは、スケジュールのCSVがないときと同じ表示になる) */
+function shownSched(S,k){return !k||finished(S,k-1)===true?schedOf(S,k):null}
 /* 順位の枠(「予選1位」など)→ 実際のチーム名。進むチームが決まっていなければ null */
 function slotNames(S,k){
   if(!k||!S.roster||leagueOf(S,k).pending||leagueOf(S,k).prov)return null;
@@ -689,7 +693,7 @@ function resultRounds(S,games,per){
    席は対局記録に入っていないので、対局後の卓には席を出さない(順位を出す)。
    返す形: [{no,date,tables:[{tb,done,rows:[{seat,team,slot,player,rank,pt,score}]}],rest:[チーム名]}] */
 function schedRounds(S,k){
-  const L=schedOf(S,k),X=leagueOf(S,k),map=slotNames(S,k),SEAT="東南西北",LET="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const L=shownSched(S,k),X=leagueOf(S,k),map=slotNames(S,k),SEAT="東南西北",LET="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const nm=x=>map&&map.get(x)||x,slot=x=>map&&map.has(x)?x:"";
   const sch=L?L.rounds:[],lastNo=sch.length?sch[sch.length-1].no:0;
   const per=sch.length?Math.max(1,...sch.map(r=>r.tables.length)):Math.max(1,Math.floor(X.teams.length/4));
@@ -722,7 +726,7 @@ function schedRounds(S,k){
   return out;
 }
 function renderSched(){
-  const S=SEASONS.get(CUR),L=schedOf(S,LG),R=schedRounds(S,LG),none=!R.length;
+  const S=SEASONS.get(CUR),L=shownSched(S,LG),R=schedRounds(S,LG),none=!R.length;
   /* スケジュールのCSVがないリーグは、終わった対局の結果だけを出す。対局が1つも終わっていなければ、卓は何も出さない */
   $("sch").textContent=L?"対局スケジュール":"対局結果";
   $("sempty").hidden=!none;$("sempty").textContent=L?"🀄スケジュール準備中🀄":"🀄対局準備中🀄";
@@ -735,8 +739,7 @@ function renderSched(){
   if(days.length)info.push(`${days.length}日間 ${dayLabel(days[0])}`+(days.length>1?`〜${dayLabel(days[days.length-1])}`:""));
   if(L&&L.wdays)info.push(`開催曜日 ${L.wdays}`);
   if(L&&L.perDay)info.push(`1日${L.perDay}試合`);
-  $("sinfo").textContent=info.join("・")+"。"+(days.length>1?"上のタブで開催日を選ぶ。":"")+(L?"対局前は席(東南西北)の順、対局後は着順で並べる。":"終わった対局の結果を、着順で並べる。")+"チーム名を押すと、そのチームを強調する。"+
-    (L&&LG&&S.roster&&!map?`${S.leagues[LG-1].name}が終わるまでは、「${S.leagues[LG-1].name}1位」のような順位の枠で表示する。`:"");
+  $("sinfo").textContent=info.join("・")+"。"+(days.length>1?"上のタブで開催日を選ぶ。":"")+(L?"対局前は席(東南西北)の順、対局後は着順で並べる。":"終わった対局の結果を、着順で並べる。")+"チーム名を押すと、そのチームを強調する。";
   $("steams").innerHTML=names.map((n,i)=>`<button type="button" class="tchip" data-s="${i}" aria-pressed="${n===SPIN}">${esc(n)}</button>`).join("");
   /* 開催日のタブ。最初に選ぶのは、今日(開催日なら)、なければ今日より後で最初の開催日、それもなければ最終日 */
   const now=new Date(),today=`${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`,next=days.find(d=>d>=today)||"";
