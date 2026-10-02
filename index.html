@@ -291,14 +291,15 @@ const f=(v,s)=>(v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const r1=v=>Math.round(v*10)/10;
 const sign=v=>v>=0?"plus":"minus";
-let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false,LG=0,GAMES=[];
+let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false,LG=0,GAMES=[],PENDING=false;
 
 /* 集計。games=対局記録、roster=チーム表(プレイヤーID→{team,name,adj})。チーム表が無ければ roster=null。
    opt.teams = このリーグに出るチーム名の集合(null なら全チーム)
    opt.carry = チーム名→前のリーグから持ち越すPT
-   opt.adj   = 点数修正を足すか(1次リーグだけ足す) */
+   opt.adj   = 点数修正を足すか(1次リーグだけ足す)
+   opt.seed  = チーム名→前のリーグの順位。合計PTが同じチームは、前のリーグの順位が上のほうを上にする */
 function compute(games,roster,opt){
-  const only=opt&&opt.teams||null, carry=opt&&opt.carry||new Map(), useAdj=!opt||opt.adj!==false;
+  const only=opt&&opt.teams||null, carry=opt&&opt.carry||new Map(), useAdj=!opt||opt.adj!==false, seed=opt&&opt.seed||new Map();
   const ro=id=>roster&&roster.get(id)||null, inLg=name=>!only||only.has(name);
   const P=new Map();
   for(const [,seats] of games){
@@ -315,7 +316,8 @@ function compute(games,roster,opt){
   const tm=name=>{let t=TM.get(name);if(!t){const c=carry.get(name)||0;t={name,carry:c,base:c,gpt:0,n:0,r:[0,0,0,0],mem:[],idle:[]};TM.set(name,t)}return t};
   if(roster) for(const [id,x] of roster){ if(!inLg(x.team))continue; const t=tm(x.team); if(!P.has(id)){t.idle.push(x.name||id); if(useAdj)t.base+=x.adj} }
   L.forEach((p,i)=>{ if(!p.team||!inLg(p.team))return; const t=tm(p.team); t.mem.push(i);t.gpt+=p.pt-p.adj;t.base+=p.adj;t.n+=p.n;p.r.forEach((c,k)=>t.r[k]+=c) });
-  const TL=[...TM.values()].map(t=>(t.pt=t.base+t.gpt,t)).sort((a,b)=>b.pt-a.pt);
+  const sd=t=>seed.has(t.name)?seed.get(t.name):1e9;
+  const TL=[...TM.values()].map(t=>(t.pt=t.base+t.gpt,t)).sort((a,b)=>b.pt-a.pt||sd(a)-sd(b));
   const tix=new Map(TL.map((t,i)=>[t.name,i]));
   const stat=(pt,n,r)=>{const m=n||1;return{avg:pt/m,ar:n?(r[0]+2*r[1]+3*r[2]+4*r[3])/n:9,top:r[0]/m,ren:(r[0]+r[1])/m,avoid:n?1-r[3]/n:0}};
   const players=L.map((p,i)=>({i,id:p.id,rank:i+1,name:p.name,team:p.team,ti:tix.has(p.team)?tix.get(p.team):-1,adj:p.adj,pt:r1(p.pt),n:p.n,r:p.r,
@@ -329,14 +331,16 @@ function compute(games,roster,opt){
 function leagueOf(S,k){
   if(S.L[k])return S.L[k];
   const lg=S.leagues[k],games=S.files[k]||[];
-  let teams=null;const carry=new Map();
+  let teams=null,pending=false;const carry=new Map(),seed=new Map();
   if(k&&S.roster){
-    const up=leagueOf(S,k-1).teams.slice(0,lg.teams);
+    // 前のリーグがまだ始まっていなければ、このリーグに進むチームは決まらない
+    pending=!games.length&&!S.files[k-1].length;
+    const up=pending?[]:leagueOf(S,k-1).teams.slice(0,lg.teams);
     teams=new Set(up.map(t=>t.name));
-    up.forEach(t=>carry.set(t.name,t.raw*lg.carry/100));
+    up.forEach((t,i)=>{carry.set(t.name,t.raw*lg.carry/100);seed.set(t.name,i)});
   }
-  const c=compute(games,S.roster,{teams,carry,adj:k===0});
-  return S.L[k]={games,players:c.players,teams:c.teams};
+  const c=compute(games,S.roster,{teams,carry,seed,adj:k===0});
+  return S.L[k]={games,players:c.players,teams:c.teams,pending};
 }
 const lastLeague=S=>{let d=0;S.files.forEach((g,k)=>{if(g.length)d=k});return d};      // 対局記録がある最新のリーグ
 const carryWord=c=>c>=100?"全部":c===50?"半分":c>0?c+"%":"なし";
@@ -349,7 +353,7 @@ function load(view,tab,lg){
   const S=SEASONS.get(view),n=S.leagues.length;
   LG=lg==null?lastLeague(S):Math.max(0,Math.min(n-1,lg));
   const X=leagueOf(S,LG),lgi=S.leagues[LG],fname=`${view}-games${LG+1}.csv`;
-  D=X.players;T=X.teams;GAMES=X.games;NOGAMES=!GAMES.length;
+  D=X.players;T=X.teams;GAMES=X.games;NOGAMES=!GAMES.length;PENDING=X.pending;
   const ds=GAMES.map(g=>g[0].slice(0,10)).sort(), a=ds[0]||"", b=ds[ds.length-1]||"";
   const free=D.filter(d=>d.ti<0).length, title=evTitle(view);
   const people=NOGAMES&&S.roster?T.reduce((x,t)=>x+t.mem.length+t.idle.length,0):D.length;
@@ -361,6 +365,7 @@ function load(view,tab,lg){
     (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
     (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
   const note=!S.roster?`チーム表(${view}.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
+    :PENDING?`${S.leagues[LG-1].name}がまだ始まっていないため、${lgi.name}に進むチームは決まっていない。`
     :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の今の上位${T.length}チームを、進出するチームとして表示している。`
     :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
     :free?`チーム順位に含めていないプレイヤーが${free}人いる(チーム表に載っていない${LG?"、またはこのリーグに進んでいないチームの所属":""})。その人の成績は個人順位にだけ含めている。`:"";
@@ -406,7 +411,7 @@ function render(){
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
 <tr class="mem"><td></td><td colspan="9"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
-</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
+</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING?"進むチームは、まだ決まっていない":SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
