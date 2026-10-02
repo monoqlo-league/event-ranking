@@ -714,9 +714,11 @@ function schedRounds(S,k){
 }
 function renderSched(){
   const S=SEASONS.get(CUR),L=schedOf(S,LG),R=schedRounds(S,LG),none=!R.length;
-  $("sempty").hidden=!none;$("sempty").textContent="🀄スケジュール準備中🀄";
+  /* スケジュールのCSVがないリーグは、終わった対局の結果だけを出す。対局が1つも終わっていなければ、卓は何も出さない */
+  $("sch").textContent=L?"対局スケジュール":"対局結果";
+  $("sempty").hidden=!none;$("sempty").textContent=L?"🀄スケジュール準備中🀄":"🀄対局準備中🀄";
   ["steams","srounds","sinfo"].forEach(id=>$(id).hidden=none);
-  if(none){$("dayrow").hidden=true;return}
+  if(none){$("dayrow").hidden=true;$("srounds").innerHTML="";$("days").innerHTML="";return}
   const map=slotNames(S,LG),names=L?L.teams.map(x=>map&&map.get(x)||x):T.map(t=>t.name);
   if(!names.includes(SPIN))SPIN=null;
   const days=[...new Set(R.filter(r=>r.date).map(r=>r.date))].sort();
@@ -724,7 +726,7 @@ function renderSched(){
   if(days.length)info.push(`${days.length}日間 ${dayLabel(days[0])}`+(days.length>1?`〜${dayLabel(days[days.length-1])}`:""));
   if(L&&L.wdays)info.push(`開催曜日 ${L.wdays}`);
   if(L&&L.perDay)info.push(`1日${L.perDay}試合`);
-  $("sinfo").textContent=info.join("・")+"。"+(days.length>1?"上のタブで開催日を選ぶ。":"")+"対局前は席(東南西北)の順、対局後は着順で並べる。チーム名を押すと、そのチームを強調する。"+
+  $("sinfo").textContent=info.join("・")+"。"+(days.length>1?"上のタブで開催日を選ぶ。":"")+(L?"対局前は席(東南西北)の順、対局後は着順で並べる。":"終わった対局の結果を、着順で並べる。")+"チーム名を押すと、そのチームを強調する。"+
     (L&&LG&&S.roster&&!map?`${S.leagues[LG-1].name}が終わるまでは、「${S.leagues[LG-1].name}1位」のような順位の枠で表示する。`:"");
   $("steams").innerHTML=names.map((n,i)=>`<button type="button" class="tchip" data-s="${i}" aria-pressed="${n===SPIN}">${esc(n)}</button>`).join("");
   /* 開催日のタブ。最初に選ぶのは、今日(開催日なら)、なければ今日より後で最初の開催日、それもなければ最終日 */
