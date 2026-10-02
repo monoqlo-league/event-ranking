@@ -184,6 +184,7 @@ h1 span{display:inline-block}
 .chartbox>.empty{margin:0}
 @media (max-width:480px){.chartbox{padding:16px}}
 @media (prefers-reduced-motion:no-preference){.cline,.cdot{transition:stroke .12s,fill .12s}}
+.chip.plain{cursor:default}
 </style>
 </head>
 <body>
@@ -254,7 +255,7 @@ h1 span{display:inline-block}
   <div class="cteams" id="cteams" role="group" aria-label="強調するチーム"></div>
   <div class="cscroll" id="cscroll"><div class="cplot" id="cplot"><svg id="csvg" role="img" tabindex="0"></svg><div class="ctip" id="ctip" hidden></div></div></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が、プレイヤー名を押すと同卓した相手ごとの相性表が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。</footer>
 
 </div>
 
@@ -264,11 +265,6 @@ h1 span{display:inline-block}
     <section class="awards" id="secMem" aria-labelledby="memh">
       <h3 id="memh">メンバー <span>個人成績</span></h3>
       <div class="dtbox"><table class="vs"><thead><tr><th style="text-align:center">個人順位</th><th class="l">プレイヤー</th><th>合計PT</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>着順</th></tr></thead><tbody id="mtb"></tbody></table></div>
-    </section>
-    <section id="secVs" aria-labelledby="vsh">
-    <h3 class="vsh" id="vsh">相性表</h3>
-    <p class="dnote">同卓した対局だけで集計した、このプレイヤーの成績。獲得PTの高い順(相性の良い順)。先着率は相手より上の順位で終えた割合。</p>
-    <div class="dtbox"><table class="vs"><thead><tr><th class="l">対戦相手</th><th>同卓数</th><th>獲得PT</th><th>平均PT</th><th class="l">先着率</th></tr></thead><tbody id="vtb"></tbody></table></div>
     </section>
   </div>
 </dialog>
@@ -288,16 +284,12 @@ function compute(games,roster){
   const P=new Map();
   for(const [,seats] of games){
     seats.forEach(([id,name,pt],i)=>{
-      let p=P.get(id); if(!p){p={id,name,pt:0,n:0,r:[0,0,0,0],vs:new Map()};P.set(id,p)}
+      let p=P.get(id); if(!p){p={id,name,pt:0,n:0,r:[0,0,0,0]};P.set(id,p)}
       p.pt+=pt;p.n++;p.r[i]++;
-      seats.forEach(([oid],j)=>{ if(j===i)return;
-        let h=p.vs.get(oid); if(!h){h=[0,0,0];p.vs.set(oid,h)}
-        h[0]++;h[1]+=pt;h[2]+=(i<j); });
     });
   }
   for(const p of P.values()){const x=ro(p.id);p.team=x?x.team:"";p.adj=x?x.adj:0;p.pt+=p.adj}
   const L=[...P.values()].sort((a,b)=>b.pt-a.pt);
-  const ix=new Map(L.map((p,i)=>[p.id,i]));
 
   /* チーム */
   const TM=new Map();
@@ -308,7 +300,7 @@ function compute(games,roster){
   const tix=new Map(TL.map((t,i)=>[t.name,i]));
   const stat=(pt,n,r)=>{const m=n||1;return{avg:pt/m,ar:n?(r[0]+2*r[1]+3*r[2]+4*r[3])/n:9,top:r[0]/m,ren:(r[0]+r[1])/m,avoid:n?1-r[3]/n:0}};
   const players=L.map((p,i)=>({i,id:p.id,rank:i+1,name:p.name,team:p.team,ti:p.team?tix.get(p.team):-1,adj:p.adj,pt:r1(p.pt),n:p.n,r:p.r,
-    ...stat(p.pt,p.n,p.r),vs:[...p.vs].map(([o,h])=>[ix.get(o),h[0],r1(h[1]),h[2]])}));
+    ...stat(p.pt,p.n,p.r)}));
   const teams=TL.map((t,i)=>({i,rank:i+1,name:t.name,pt:r1(t.pt),n:t.n,r:t.r,mem:t.mem,idle:t.idle,
     ...stat(t.pt,t.n,t.r)}));
   return {players,teams};
@@ -369,13 +361,13 @@ function render(){
 <tr class="trow"><td class="rank">${rankCell(t)}</td>
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
-<tr class="mem"><td></td><td colspan="9"><div class="mems">${t.mem.map(i=>{const p=D[i];return `<button class="chip" data-p="${i}" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></button>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
+<tr class="mem"><td></td><td colspan="9"><div class="mems">${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
 </tbody>`).join(""):`<tbody><tr><td colspan="10" class="empty">${SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
 <td class="rank">${rankCell(d)}</td>
-<td class="l name"><button class="pname" data-p="${d.i}" title="${esc(d.name)} の相性表を見る">${esc(d.name)}</button>${adjMark(d)}</td>
+<td class="l name">${esc(d.name)}${adjMark(d)}</td>
 <td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:'<span class="oteam" style="margin:0">未登録</span>'}</td>
 ${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"対局がまだない":"該当するプレイヤーがいない")+'</td></tr>';
   }
@@ -385,34 +377,16 @@ document.querySelectorAll("th button").forEach(b=>b.addEventListener("click",()=
   document.querySelectorAll(`th button[data-v="${b.dataset.v}"]`).forEach(x=>x.classList.toggle("on",x===b));render()}));
 $("q").addEventListener("input",render);
 
-/* 成績ダイアログ(プレイヤー / チーム) */
+/* チームの成績ダイアログ(メンバーの個人成績) */
 const dlg=$("dlg");
-const vsRow=(label,g,pt,w)=>{const wr=w/g*100;return `<tr><td class="l">${label}</td>
-<td class="num">${g}</td>
-<td class="pt ${sign(pt)}">${f(pt,1)}</td>
-<td class="num ${sign(pt)}">${f(pt/g,2)}</td>
-<td class="l num"><span class="wbar"><span style="width:${wr}%"></span></span>${wr.toFixed(0)}%<span class="orank">${w}-${g-w}</span></td></tr>`};
 function openDlg(){ if(!dlg.open)dlg.showModal(); $("dclose").focus({preventScroll:true}); dlg.scrollTop=0 }
-function openPlayer(i){
-  const p=D[i];
-  $("dscope").textContent=`${evName(CUR)} 個人成績`;
-  $("dname").textContent=p.name;
-  $("dsub").innerHTML=`<span>個人 <b>${p.rank}位</b></span>`+
-    (p.ti>=0?`<span>チーム <button data-t="${p.ti}">${esc(p.team)}</button> <b>${T[p.ti].rank}位</b></span>`:"")+
-    `<span>合計PT <b class="${sign(p.pt)}">${f(p.pt,1)}</b>${p.adj?`(点数修正 <b>${f(p.adj,1)}</b> を含む)`:""}</span><span>対局数 <b>${p.n}</b></span><span>対戦相手 <b>${p.vs.length}</b>人</span>`;
-  $("secMem").hidden=true;$("secVs").hidden=false;
-  $("vtb").innerHTML=[...p.vs].sort((a,b)=>b[2]-a[2]||b[1]-a[1]).map(([o,g,pt,w])=>{const q=D[o];
-    return vsRow(`<button class="oppbtn" data-p="${o}">${esc(q.name)}</button><span class="orank">${q.rank}位</span>${q.team?`<span class="oteam">${esc(q.team)}</span>`:""}`,g,pt,w)}).join("");
-  openDlg();
-}
 function openTeam(i){
   const t=T[i];
   $("dscope").textContent=`${evName(CUR)} チーム成績`;
   $("dname").textContent=t.name;
   $("dsub").innerHTML=`<span>チーム <b>${NOGAMES?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`;
-  $("secMem").hidden=false;$("secVs").hidden=true;
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
-<td class="l"><button class="oppbtn" data-p="${k}">${esc(p.name)}</button>${adjMark(p)}</td>
+<td class="l" style="font-weight:700">${esc(p.name)}${adjMark(p)}</td>
 <td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
 <td class="num ${sign(p.avg)}">${f(p.avg,2)}</td><td class="num">${p.ar.toFixed(2)}</td>
 <td class="num">${p.r.join(" / ")}</td></tr>`}).join("")+
@@ -420,8 +394,7 @@ function openTeam(i){
   openDlg();
 }
 document.addEventListener("click",e=>{
-  const b=e.target.closest("[data-p],[data-t]"); if(!b||b.closest("th"))return;
-  if(b.dataset.p!=null)openPlayer(+b.dataset.p); else openTeam(+b.dataset.t);
+  const b=e.target.closest("[data-t]"); if(b)openTeam(+b.dataset.t);
 });
 $("dclose").addEventListener("click",()=>dlg.close());
 dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
