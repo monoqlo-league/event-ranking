@@ -697,7 +697,10 @@ function schedRounds(S,k){
   const nm=x=>map&&map.get(x)||x,slot=x=>map&&map.has(x)?x:"";
   const sch=L?L.rounds:[],lastNo=sch.length?sch[sch.length-1].no:0;
   const per=sch.length?Math.max(1,...sch.map(r=>r.tables.length)):Math.max(1,Math.floor(X.teams.length/4));
-  const res=resultRounds(S,X.games,per),out=[],byTable=tableOrder(L?L.order:[]);
+  /* 卓の名前は、スケジュールのCSVのものを使う。スケジュールを出さないあいだ(前のリーグが終わる前)や、予定にない対局にも、
+     CSVの卓の名前を前から順に当てる。CSVがない大会と、名前が足りないときだけ、A卓・B卓…とする */
+  const A=schedOf(S,k),pool=!A?[]:A.order.length?A.order:[...new Set(A.rounds.flatMap(r=>r.tables.map(t=>t[0])))].sort();
+  const res=resultRounds(S,X.games,per),out=[],byTable=tableOrder(pool);
   for(let i=0;i<Math.max(sch.length,res.length);i++){
     const s=sch[i]||null,r=res[i]||null;
     const plan=s?s.tables.map(([tb,seats])=>({tb,rows:seats.map((x,j)=>x==null?null:{seat:SEAT[j],team:nm(x),slot:slot(x)}).filter(Boolean)})):[];
@@ -713,7 +716,7 @@ function schedRounds(S,k){
       const taken=new Set(plan.map(p=>p.tb));
       r.games.forEach((g,gi)=>{
         const [pi]=at.get(gi)||[-1],p=pi>=0?plan[pi]:null;
-        let tb=p?p.tb:"";if(!tb){tb=[...LET].map(c=>c+"卓").find(c=>!taken.has(c))||"?";taken.add(tb)}      // 予定にない卓は A卓・B卓…
+        let tb=p?p.tb:"";if(!tb){tb=pool.concat([...LET].map(c=>c+"卓")).find(c=>!taken.has(c))||"?";taken.add(tb)}
         rd.tables.push({tb,done:true,rows:g});
       });
       /* まだ対局記録のない卓は、出るチームがこの回戦の対局記録にいなければ、予定として残す */
