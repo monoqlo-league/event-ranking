@@ -198,6 +198,8 @@ tbody.cut tr:hover td{background:var(--accent-soft)}
 .cut td span{font-weight:400;letter-spacing:0;margin-left:10px;color:var(--muted)}
 .ccut{stroke:var(--accent);stroke-width:1}
 .ccutl{font-size:10px;fill:var(--accent);font-weight:700}
+tbody.prep tr:last-child td{border-bottom:1px solid var(--line);padding:16px}
+tbody.prep tr:hover td{background:transparent}
 </style>
 </head>
 <body>
@@ -411,12 +413,14 @@ function render(){
     // 次のリーグがあるとき、合計PT順の表に通過ラインを入れる
     const S=SEASONS.get(CUR),nx=S.leagues[LG+1],cut=nx&&!NOGAMES&&!q&&KEY.team==="pt"&&nx.teams<T.length?nx.teams:0;
     const cutRow=cut?`<tbody class="cut"><tr><td colspan="10">通過ライン<span>上位${cut}チームが${esc(nx.name)}へ</span></td></tr></tbody>`:"";
-    tb.insertAdjacentHTML("beforeend",L.length?L.map(t=>`<tbody class="tg${!NOGAMES&&t.rank<=3?" top":""}">
+    // 対局前は、表のいちばん上に「対局準備中」と出す(その下に、チームとメンバーを順位なしで並べる)
+    const prep=NOGAMES?'<tbody class="prep"><tr><td colspan="10" class="empty">🀄対局準備中🀄</td></tr></tbody>':"";
+    tb.insertAdjacentHTML("beforeend",L.length?prep+L.map(t=>`<tbody class="tg${!NOGAMES&&t.rank<=3?" top":""}">
 <tr class="trow"><td class="rank">${rankCell(t)}</td>
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
 <tr class="mem"><td></td><td colspan="9"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
-</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING?"進むチームは、まだ決まっていない":SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
+</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING||NOGAMES&&!q?"🀄対局準備中🀄":SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
