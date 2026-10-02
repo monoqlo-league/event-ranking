@@ -423,7 +423,7 @@ ${stats(t)}</tr>
 <td class="rank">${rankCell(d)}</td>
 <td class="l name">${esc(d.name)}${adjMark(d)}</td>
 <td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:`<span class="oteam" style="margin:0">${d.team?esc(d.team):"未登録"}</span>`}</td>
-${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"対局がまだない":"該当するプレイヤーがいない")+'</td></tr>';
+${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"🀄対局準備中🀄":"該当するプレイヤーがいない")+'</td></tr>';
   }
 }
 document.querySelectorAll("th button").forEach(b=>b.addEventListener("click",()=>{
@@ -478,7 +478,7 @@ function renderChart(){
   HIST=rankHistory(S);
   const none=!HIST;
   $("cempty").hidden=!none;
-  $("cempty").textContent=!S.roster?"チーム表がないため、順位グラフは出せない。":"対局がまだないため、順位グラフは出せない。";
+  $("cempty").textContent=!S.roster?"チーム表がないため、順位グラフは出せない。":"🀄対局準備中🀄";
   ["cteams","cscroll"].forEach(id=>$(id).hidden=none);
   if(none)return;
   if(PIN>=T.length)PIN=0;
