@@ -254,6 +254,12 @@ h1 .stamp{position:absolute;right:-18px;top:50%;width:clamp(88px,16vw,116px);hei
 /* ボーダー(トップ)とのPT差 */
 #tT{min-width:840px}
 td.gap.plus{color:var(--plus)}td.gap.minus{color:var(--minus)}
+
+/* チームの詳細: 戦績と順位の推移 */
+.vs.rec{min-width:680px}
+.vs.rec td,.vs.rec th{padding:8px 7px}
+#dsvg{display:block}
+#secChart{margin-bottom:0}
 </style>
 </head>
 <body>
@@ -344,16 +350,24 @@ td.gap.plus{color:var(--plus)}td.gap.minus{color:var(--minus)}
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・メンバーの成績・そのチームを強調した順位の推移が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 
 </div>
 
 <dialog id="dlg" aria-labelledby="dname">
   <div class="dhead"><div><div class="dscope" id="dscope"></div><h2 id="dname"></h2><div class="dsub" id="dsub"></div></div><button class="close" id="dclose" aria-label="閉じる">×</button></div>
   <div class="dbody">
+    <section class="awards" id="secRec" aria-labelledby="rech">
+      <h3 id="rech">戦績 <span>チーム順位の行と同じ内容</span></h3>
+      <div class="dtbox"><table class="vs rec"><thead><tr><th style="text-align:center">順位</th><th>合計PT</th><th id="thGapD">ボーダーとの差</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>トップ率</th><th>連対率</th><th>ラス回避率</th><th>着順分布</th></tr></thead><tbody id="rtb"></tbody></table></div>
+    </section>
     <section class="awards" id="secMem" aria-labelledby="memh">
       <h3 id="memh">メンバー <span>個人成績</span></h3>
       <div class="dtbox"><table class="vs"><thead><tr><th style="text-align:center">個人順位</th><th class="l">プレイヤー</th><th>合計PT</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>着順</th></tr></thead><tbody id="mtb"></tbody></table></div>
+    </section>
+    <section class="awards" id="secChart" aria-labelledby="dch">
+      <h3 id="dch">順位の推移 <span>このチームを強調</span></h3>
+      <div class="cscroll" id="dscroll"><svg id="dsvg" role="img"></svg></div>
     </section>
   </div>
 </dialog>
@@ -496,6 +510,18 @@ const stats=(d,extra="")=>`<td class="pt ${sign(d.pt)}">${f(d.pt,1)}</td>${extra
 <td class="num">${d.n?(d.ren*100).toFixed(1)+"%":"—"}</td>
 <td class="num">${d.n?(d.avoid*100).toFixed(1)+"%":"—"}</td>
 <td>${bar(d)}</td>`;
+/* PTの差。最後のリーグはトップ(1位)との差。それ以外はボーダーとの差。
+   ボーダーは、通過できるいちばん下の順位のチーム(4チーム通過なら4位)。どのチームも、そのチームとの差を出す。基準のチーム自身は — */
+const nextLeague=()=>SEASONS.get(CUR).leagues[LG+1];
+const gapLabel=()=>nextLeague()?"ボーダーとの差":"トップとの差";
+function gapOf(t){
+  const nx=nextLeague(),line=nx&&nx.teams<T.length?nx.teams:0;
+  if(NORANK||T.length<2)return null;
+  if(!nx)return t.rank===1?null:r1(t.raw-T[0].raw);
+  if(!line)return null;
+  return t.rank===line?null:r1(t.raw-T[line-1].raw);
+}
+const gapCell=t=>{const v=gapOf(t);return v==null?'<td class="num gap">—</td>':`<td class="num gap ${sign(v)}">${f(v,1)}</td>`};
 const adjMark=p=>p.adj?`<span class="adj" title="点数修正 ${f(p.adj,1)} を含む">修正${f(p.adj,1)}</span>`:"";
 const by=k=>(a,b)=>k==="ar"?a.ar-b.ar:b[k]-a[k];
 function render(){
@@ -505,17 +531,7 @@ function render(){
     const L=T.filter(t=>!q||hit(t.name)||t.mem.some(i=>hit(D[i].name))||t.idle.some(hit)).sort(by(KEY.team));
     // 次のリーグがあるとき、合計PT順の表に通過ラインを入れる
     const S=SEASONS.get(CUR),nx=S.leagues[LG+1],cut=nx&&!NORANK&&!q&&KEY.team==="pt"&&nx.teams<T.length?nx.teams:0;
-    /* PTの差の列。最後のリーグはトップ(1位)との差。それ以外はボーダーとの差。
-       ボーダーは、通過できるいちばん下の順位のチーム(4チーム通過なら4位)。どのチームも、そのチームとの差を出す。基準のチーム自身は — */
-    const line=nx&&nx.teams<T.length?nx.teams:0;
-    $("thGap").textContent=nx?"ボーダーとの差":"トップとの差";
-    const gap=t=>{
-      if(NORANK||T.length<2)return null;
-      if(!nx)return t.rank===1?null:r1(t.raw-T[0].raw);
-      if(!line)return null;
-      return t.rank===line?null:r1(t.raw-T[line-1].raw);
-    };
-    const gapCell=t=>{const v=gap(t);return v==null?'<td class="num gap">—</td>':`<td class="num gap ${sign(v)}">${f(v,1)}</td>`};
+    $("thGap").textContent=gapLabel();
     const cutRow=cut?`<tbody class="cut"><tr><td colspan="11">通過ライン<span>上位${cut}チームが${esc(nx.name)}へ</span></td></tr></tbody>`:"";
     // 対局前は、表のいちばん上に「対局準備中」と出す(その下に、チームとメンバーを並べる。2次以降のリーグは、持ち越したPTの順位を付ける)
     const prep=NOGAMES?'<tbody class="prep"><tr><td colspan="11" class="empty">🀄対局準備中🀄</td></tr></tbody>':"";
@@ -547,14 +563,26 @@ function openTeam(i){
   const S=SEASONS.get(CUR);
   $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+S.leagues[LG].name:""} チーム成績`;
   $("dname").textContent=t.name;
-  $("dsub").innerHTML=`<span>チーム <b>${NORANK?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG?`<span>うち持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
+  $("dsub").innerHTML=`<span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG?`<span>持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
+  /* 戦績(チーム順位の行と同じ内容) */
+  $("thGapD").textContent=gapLabel();
+  $("rtb").innerHTML=`<tr><td class="rank">${rankCell(t)}</td>${stats(t,gapCell(t))}</tr>`;
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
 <td class="l" style="font-weight:700">${esc(p.name)}${adjMark(p)}</td>
 <td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
 <td class="num ${sign(p.avg)}">${f(p.avg,2)}</td><td class="num">${p.ar.toFixed(2)}</td>
 <td class="num">${p.r.join(" / ")}</td></tr>`}).join("")+
     t.idle.map(n=>`<tr><td class="rank">—</td><td class="l">${esc(n)}</td><td class="num" colspan="5" style="text-align:left;color:var(--muted)">未対局</td></tr>`).join("");
+  /* このチームを強調した順位の推移(対局記録がないときは出さない) */
+  const H=rankHistory(S);
+  $("secChart").hidden=!H;
   openDlg();
+  if(H){
+    const {g,geo}=chartMarkup(H,i,Math.max($("dscroll").clientWidth,560)),svg=$("dsvg");
+    svg.setAttribute("viewBox",`0 0 ${geo.W} ${geo.H}`);svg.setAttribute("width",geo.W);svg.setAttribute("height",geo.H);
+    svg.setAttribute("aria-label",`チーム順位の推移。${H.days.length}日分、${T.length}チーム。${t.name} を強調している。最新の順位は${H.ranks[i][H.days.length-1]}位。`);
+    svg.innerHTML=g;
+  }
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-t]"); if(b){openTeam(+b.dataset.t);return}
@@ -594,16 +622,14 @@ function renderChart(){
   $("cteams").innerHTML=T.map(t=>`<button type="button" class="tchip" data-c="${t.i}" aria-pressed="${t.i===PIN}"><b>${t.rank}</b>${esc(t.name)}</button>`).join("");
   drawChart();
 }
-function drawChart(){
-  if(!HIST)return;
-  const n=T.length,days=HIST.days,m=days.length;
-  const W=Math.max($("cscroll").clientWidth,640),rowH=Math.max(20,Math.min(32,Math.floor(400/n)));
+/* 順位の折れ線を描く中身(SVG)を作る。H0=rankHistory の結果、hi=強調するチーム、W=幅 */
+function chartMarkup(H0,hi,W){
+  const n=T.length,days=H0.days,m=days.length;
+  const rowH=Math.max(20,Math.min(32,Math.floor(400/n)));
   const L=40,R=140,top=30,H=top+(n-1)*rowH+46;
   const X=i=>m>1?L+i*(W-L-R)/(m-1):L+(W-L-R)/2, Y=r=>top+(r-1)*rowH;
-  GEO={W,H,L,R,top,rowH,X,Y,n,m};
-  const hi=HOV!=null?HOV:PIN;
   // 開催日ごとの順位を、直線でつなぐ
-  const path=ti=>HIST.ranks[ti].map((r,i)=>`${i?"L":"M"}${X(i)} ${Y(r)}`).join("");
+  const path=ti=>H0.ranks[ti].map((r,i)=>`${i?"L":"M"}${X(i)} ${Y(r)}`).join("");
   const step=m>1?Math.max(1,Math.ceil(46/((W-L-R)/(m-1)))):1;
   let g=`<text class="cax" x="${L-14}" y="${top-16}" text-anchor="end">順位</text>`;
   for(let i=0;i<m;i++){
@@ -613,19 +639,25 @@ function drawChart(){
   for(let r=1;r<=n;r++) g+=`<text class="cax" x="${L-14}" y="${Y(r)+4}" text-anchor="end">${r}</text>`;
   const order=T.map(t=>t.i).filter(i=>i!==hi).concat(hi);          // 強調する線を最後(いちばん上)に描く
   for(const ti of order){
-    const on=ti===hi,last=HIST.ranks[ti][m-1];
+    const on=ti===hi,last=H0.ranks[ti][m-1];
     g+=m>1?`<path class="cline${on?" on":""}" d="${path(ti)}"/>`:"";
-    if(on||m===1) g+=HIST.ranks[ti].map((r,i)=>`<circle class="cdot${on?" on":""}" cx="${X(i)}" cy="${Y(r)}" r="${on?4.5:3.5}"/>`).join("");
+    if(on||m===1) g+=H0.ranks[ti].map((r,i)=>`<circle class="cdot${on?" on":""}" cx="${X(i)}" cy="${Y(r)}" r="${on?4.5:3.5}"/>`).join("");
     g+=`<text class="clab${on?" on":""}" x="${X(m-1)+12}" y="${Y(last)+4}">${esc(T[ti].name)}</text>`;
   }
   const S=SEASONS.get(CUR),nx=S.leagues[LG+1];
   if(nx&&nx.teams<n){const y=(Y(nx.teams)+Y(nx.teams+1))/2;        // 通過ライン
     g+=`<line class="ccut" x1="${L-6}" y1="${y}" x2="${X(m-1)+6}" y2="${y}"/><text class="ccutl" x="${X(m-1)+12}" y="${y+3.5}">通過ライン</text>`}
-  g+=`<line class="ccross" id="ccross" x1="0" y1="${top-8}" x2="0" y2="${Y(n)+8}" visibility="hidden"/>`;
+  return {g,geo:{W,H,L,R,top,rowH,X,Y,n,m}};
+}
+function drawChart(){
+  if(!HIST)return;
+  const hi=HOV!=null?HOV:PIN,{g,geo}=chartMarkup(HIST,hi,Math.max($("cscroll").clientWidth,640));
+  GEO=geo;
+  const {W,H,top,Y,n}=geo,days=HIST.days;
   const svg=$("csvg");
   svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("width",W);svg.setAttribute("height",H);
   svg.setAttribute("aria-label",`チーム順位の推移。${days.length}日分、${n}チーム。強調しているのは ${T[hi].name}。左右の矢印キーで日を、上下の矢印キーでチームを選べる。`);
-  svg.innerHTML=g;
+  svg.innerHTML=g+`<line class="ccross" id="ccross" x1="0" y1="${top-8}" x2="0" y2="${Y(n)+8}" visibility="hidden"/>`;
   $("cplot").style.width=W+"px";
   showCross();
 }
