@@ -220,10 +220,10 @@ tbody.prep tr:hover td{background:transparent}
 .stb tbody.sday:last-child tr:last-child td{border-bottom:0}
 .stb td.srd{border-bottom:1px solid var(--line)}
 .stb td.srd.lastrd{border-bottom:0}
-.stb .sdh td{text-align:left;background:var(--accent-soft);font-size:13px;padding:6px 10px;border-top:1px solid var(--line)}
-.stb tbody.sday:first-of-type .sdh td{border-top:0}
-.stb .sdh b{font-family:"IBM Plex Mono",monospace;font-weight:600}
-.sbadge{display:inline-block;margin-left:10px;padding:0 8px;border-radius:999px;background:var(--accent);color:var(--surface);font-size:11px;font-weight:700;line-height:1.7}
+.dayrow .tab{font-family:"IBM Plex Mono","Zen Kaku Gothic New",monospace;font-size:13px;font-weight:500;padding:8px 10px;white-space:nowrap}
+.dayrow .tab[aria-selected="true"]{font-weight:600}
+.dayrow .tab span{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--accent);color:var(--surface);font-family:"Zen Kaku Gothic New",sans-serif;font-size:10px;font-weight:700;line-height:1.7;vertical-align:1px}
+@media (max-width:480px){.dayrow .tab{padding:7px 8px}}
 .stb td.srd{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--muted);vertical-align:top;width:5em}
 .stb td.stbl{font-family:"IBM Plex Mono","Zen Kaku Gothic New",monospace;font-weight:600;color:var(--accent);width:4em}
 .stb td.stbl.rest,.stb td.rest{color:var(--muted);font-weight:400}
@@ -266,6 +266,9 @@ tbody.prep tr:hover td{background:transparent}
     <button class="tab" role="tab" id="tabChart" aria-selected="false">順位グラフ</button>
     <button class="tab" role="tab" id="tabSched" aria-selected="false">スケジュール</button>
   </div>
+</div>
+<div class="views dayrow" id="dayrow" hidden>
+  <div class="tabs" role="tablist" aria-label="表示する開催日" id="days"></div>
 </div>
 </div>
 <p class="notice" id="notice" hidden></p>
@@ -319,7 +322,7 @@ tbody.prep tr:hover td{background:transparent}
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="sscroll" id="sscroll"><table class="stb" id="stb"></table></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、対局スケジュール作成ツールで作ったCSVを、回戦ごとに表示する。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、対局スケジュール作成ツールで作ったCSVから、選んだ開催日の卓組を表示する。</footer>
 
 </div>
 
@@ -423,7 +426,7 @@ function load(view,tab,lg){
   $("notice").textContent=note;$("notice").hidden=!note;
   $("month").value=view;
   if(dlg.open)dlg.close();
-  PIN=0;HOV=null;CX=null;
+  PIN=0;HOV=null;CX=null;SDAY=null;
   show();
 }
 function show(){
@@ -433,6 +436,7 @@ function show(){
   $("tabSched").setAttribute("aria-selected",TAB==="schedule");
   $("boxT").hidden=TAB!=="team";$("boxP").hidden=TAB!=="player";$("boxC").hidden=TAB!=="chart";$("boxS").hidden=TAB!=="schedule";
   $("tools").hidden=TAB==="chart"||TAB==="schedule";     // 検索と着順の凡例は、順位表のときだけ
+  if(TAB!=="schedule")$("dayrow").hidden=true;           // 開催日のタブは、スケジュールのときだけ
   const parts=[]; if(CUR!==MONTHS[0])parts.push(CUR); if(LG!==lastLeague(SEASONS.get(CUR)))parts.push("L"+(LG+1)); if(TAB!=="team")parts.push(TAB);
   const h=parts.join("-");
   try{history.replaceState(null,"",h?"#"+h:location.pathname+location.search)}catch(e){}
@@ -499,7 +503,8 @@ function openTeam(i){
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-t]"); if(b){openTeam(+b.dataset.t);return}
-  const l=e.target.closest("[data-l]"); if(l)load(CUR,null,+l.dataset.l);
+  const l=e.target.closest("[data-l]"); if(l){load(CUR,null,+l.dataset.l);return}
+  const d=e.target.closest("[data-d]"); if(d){SDAY=d.dataset.d;renderSched()}
 });
 $("dclose").addEventListener("click",()=>dlg.close());
 dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
@@ -613,6 +618,7 @@ window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(T
    対局スケジュール作成ツール(event-schedule)のCSVを、回戦ごとの表にする。
    2次以降のリーグは「予選1位」のような順位の枠で作られている。前のリーグが終わっていれば、枠に実際のチーム名を入れる。 */
 let SPIN=null;                                            // 強調しているチーム名(なければ null)
+let SDAY=null;                                            // 表示している開催日(YYYY-MM-DD)。リーグを切り替えたら選び直す
 const WDAY="日月火水木金土";
 const dayLabel=d=>{const t=new Date(Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10)));return `${t.getUTCMonth()+1}/${t.getUTCDate()}(${WDAY[t.getUTCDay()]})`};
 /* このリーグのスケジュール。リーグ名で探し、名前が合わなければ並び順で探す */
@@ -637,7 +643,7 @@ function renderSched(){
   const S=SEASONS.get(CUR),L=schedOf(S,LG),none=!L||!L.rounds.length;
   $("sempty").hidden=!none;$("sempty").textContent="🀄スケジュール準備中🀄";
   ["steams","sscroll","sinfo"].forEach(id=>$(id).hidden=none);
-  if(none)return;
+  if(none){$("dayrow").hidden=true;return}
   const map=slotNames(S,LG),nm=x=>map&&map.get(x)||x,slot=x=>map&&map.has(x)?x:"";
   const names=L.teams.map(nm);
   if(!names.includes(SPIN))SPIN=null;
@@ -646,21 +652,21 @@ function renderSched(){
   if(days.length)info.push(`${days.length}日間 ${dayLabel(days[0])}`+(days.length>1?`〜${dayLabel(days[days.length-1])}`:""));
   if(L.wdays)info.push(`開催曜日 ${L.wdays}`);
   if(L.perDay)info.push(`1日${L.perDay}試合`);
-  $("sinfo").textContent=info.join("・")+"。チーム名を押すと、そのチームの卓を強調する。"+
+  $("sinfo").textContent=info.join("・")+"。"+(days.length>1?"上のタブで開催日を選ぶ。":"")+"チーム名を押すと、そのチームの卓を強調する。"+
     (LG&&S.roster?(map?`「${S.leagues[LG-1].name}1位」などの枠には、${S.leagues[LG-1].name}の順位で決まったチームを入れている。`:`${S.leagues[LG-1].name}が終わるまでは、「${S.leagues[LG-1].name}1位」のような順位の枠で表示する。`):"");
   $("steams").innerHTML=names.map((n,i)=>`<button type="button" class="tchip" data-s="${i}" aria-pressed="${n===SPIN}">${esc(n)}</button>`).join("");
-  /* 今日か、今日より後で最初の開催日に印を付ける */
+  /* 開催日のタブ。最初に選ぶのは、今日(開催日なら)、なければ今日より後で最初の開催日、それもなければ最終日 */
   const now=new Date(),today=`${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`,next=days.find(d=>d>=today)||"";
+  if(!days.includes(SDAY))SDAY=next||days[days.length-1]||null;
+  $("dayrow").hidden=!days.length;
+  $("days").innerHTML=days.map(d=>`<button class="tab" role="tab" aria-selected="${d===SDAY}" data-d="${d}">${dayLabel(d)}${d===next?`<span>${next===today?"本日":"次回"}</span>`:""}</button>`).join("");
   const cell=x=>{const n=nm(x),s=slot(x);return `<td class="l st${n===SPIN?" on":""}${LG&&!map?" tbd":""}"><span>${esc(n)}</span>${s?`<small>${esc(s)}</small>`:""}</td>`};
-  let html=`<thead><tr><th class="l">回戦</th><th class="l">卓</th>${["東","南","西","北"].map(x=>`<th class="l">${x}家</th>`).join("")}</tr></thead>`,prev=null;
-  L.rounds.forEach((rd,r)=>{
-    if(r===0||rd.date!==prev){
-      html+=(r?"</tbody>":"")+`<tbody class="sday">`+(rd.date?`<tr class="sdh"><td colspan="6"><b>${dayLabel(rd.date)}</b>${rd.date===next?`<span class="sbadge">${next===today?"本日":"次回"}</span>`:""}</td></tr>`:"");
-      prev=rd.date;
-    }
+  let html=`<thead><tr><th class="l">回戦</th><th class="l">卓</th>${["東","南","西","北"].map(x=>`<th class="l">${x}家</th>`).join("")}</tr></thead><tbody class="sday">`;
+  const list=days.length?L.rounds.filter(rd=>rd.date===SDAY):L.rounds;      // 日付のないスケジュールは、全部の回戦を出す
+  list.forEach((rd,r)=>{
     const rows=rd.tables.length+(rd.rest.length?1:0);
     rd.tables.forEach(([tb,seats],ti)=>{
-      html+=`<tr>${ti?"":`<td class="l srd${r===L.rounds.length-1?" lastrd":""}" rowspan="${rows}">第${rd.no}戦</td>`}<td class="l stbl">${esc(tb)}卓</td>${seats.map(x=>x==null?'<td class="l st tbd">—</td>':cell(x)).join("")}</tr>`;
+      html+=`<tr>${ti?"":`<td class="l srd${r===list.length-1?" lastrd":""}" rowspan="${rows}">第${rd.no}戦</td>`}<td class="l stbl">${esc(tb)}卓</td>${seats.map(x=>x==null?'<td class="l st tbd">—</td>':cell(x)).join("")}</tr>`;
     });
     if(rd.rest.length) html+=`<tr>${rd.tables.length?"":`<td class="l srd">第${rd.no}戦</td>`}<td class="l stbl rest">抜け番</td><td class="l rest${rd.rest.some(x=>nm(x)===SPIN)?" on":""}" colspan="4">${rd.rest.map(x=>esc(nm(x))).join("、")}</td></tr>`;
   });
