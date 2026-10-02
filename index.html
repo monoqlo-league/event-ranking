@@ -185,6 +185,20 @@ h1 span{display:inline-block}
 @media (max-width:480px){.chartbox{padding:16px}}
 @media (prefers-reduced-motion:no-preference){.cline,.cdot{transition:stroke .12s,fill .12s}}
 .chip.plain{cursor:default}
+
+/* リーグの切り替えと通過ライン */
+.lgs{display:flex;flex-wrap:wrap;gap:8px}
+.lg{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;gap:8px;align-items:baseline;padding:7px 16px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:14px;font-weight:700}
+.lg span{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:400}
+.lg:hover{border-color:var(--accent);color:var(--ink)}
+.lg[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.lg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cut td{padding:4px 10px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--accent);background:var(--accent-soft);border-top:2px solid var(--accent);border-bottom:1px solid var(--line)}
+tbody.cut tr:last-child td{border-bottom:1px solid var(--line)}
+tbody.cut tr:hover td{background:var(--accent-soft)}
+.cut td span{font-weight:400;letter-spacing:0;margin-left:10px;color:var(--muted)}
+.ccut{stroke:var(--accent);stroke-width:1}
+.ccutl{font-size:10px;fill:var(--accent);font-weight:700}
 </style>
 </head>
 <body>
@@ -203,6 +217,7 @@ h1 span{display:inline-block}
   <input id="q" class="search" type="search" placeholder="チーム名・プレイヤー名で検索" aria-label="チーム名・プレイヤー名で検索">
   <div class="legend"><span><i style="background:var(--r1)"></i>1位</span><span><i style="background:var(--r2)"></i>2位</span><span><i style="background:var(--r3)"></i>3位</span><span><i style="background:var(--r4)"></i>4位</span></div>
 </div>
+<div class="lgs" id="lgs" role="tablist" aria-label="表示するリーグ" hidden></div>
 <div class="views">
   <div class="tabs" role="tablist" aria-label="表示するランキング">
     <button class="tab" role="tab" id="tabTeam" aria-selected="true">チーム順位</button>
@@ -276,11 +291,15 @@ const f=(v,s)=>(v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const r1=v=>Math.round(v*10)/10;
 const sign=v=>v>=0?"plus":"minus";
-let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false;
+let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false,LG=0,GAMES=[];
 
-/* 集計。games=対局記録、roster=チーム表(プレイヤーID→{team,name,adj})。チーム表が無ければ roster=null */
-function compute(games,roster){
-  const ro=id=>roster&&roster.get(id)||null;
+/* 集計。games=対局記録、roster=チーム表(プレイヤーID→{team,name,adj})。チーム表が無ければ roster=null。
+   opt.teams = このリーグに出るチーム名の集合(null なら全チーム)
+   opt.carry = チーム名→前のリーグから持ち越すPT
+   opt.adj   = 点数修正を足すか(1次リーグだけ足す) */
+function compute(games,roster,opt){
+  const only=opt&&opt.teams||null, carry=opt&&opt.carry||new Map(), useAdj=!opt||opt.adj!==false;
+  const ro=id=>roster&&roster.get(id)||null, inLg=name=>!only||only.has(name);
   const P=new Map();
   for(const [,seats] of games){
     seats.forEach(([id,name,pt],i)=>{
@@ -288,42 +307,63 @@ function compute(games,roster){
       p.pt+=pt;p.n++;p.r[i]++;
     });
   }
-  for(const p of P.values()){const x=ro(p.id);p.team=x?x.team:"";p.adj=x?x.adj:0;p.pt+=p.adj}
+  for(const p of P.values()){const x=ro(p.id);p.team=x?x.team:"";p.adj=x&&useAdj?x.adj:0;p.pt+=p.adj}
   const L=[...P.values()].sort((a,b)=>b.pt-a.pt);
 
-  /* チーム */
+  /* チーム。base=持ち越し+点数修正、gpt=このリーグの対局で得たPT */
   const TM=new Map();
-  const tm=name=>{let t=TM.get(name);if(!t){t={name,pt:0,n:0,r:[0,0,0,0],mem:[],idle:[]};TM.set(name,t)}return t};
-  if(roster) for(const [id,x] of roster){const t=tm(x.team); if(!P.has(id)){t.idle.push(x.name||id);t.pt+=x.adj}}
-  L.forEach((p,i)=>{ if(!p.team)return; const t=tm(p.team); t.mem.push(i);t.pt+=p.pt;t.n+=p.n;p.r.forEach((c,k)=>t.r[k]+=c) });
-  const TL=[...TM.values()].sort((a,b)=>b.pt-a.pt);
+  const tm=name=>{let t=TM.get(name);if(!t){const c=carry.get(name)||0;t={name,carry:c,base:c,gpt:0,n:0,r:[0,0,0,0],mem:[],idle:[]};TM.set(name,t)}return t};
+  if(roster) for(const [id,x] of roster){ if(!inLg(x.team))continue; const t=tm(x.team); if(!P.has(id)){t.idle.push(x.name||id); if(useAdj)t.base+=x.adj} }
+  L.forEach((p,i)=>{ if(!p.team||!inLg(p.team))return; const t=tm(p.team); t.mem.push(i);t.gpt+=p.pt-p.adj;t.base+=p.adj;t.n+=p.n;p.r.forEach((c,k)=>t.r[k]+=c) });
+  const TL=[...TM.values()].map(t=>(t.pt=t.base+t.gpt,t)).sort((a,b)=>b.pt-a.pt);
   const tix=new Map(TL.map((t,i)=>[t.name,i]));
   const stat=(pt,n,r)=>{const m=n||1;return{avg:pt/m,ar:n?(r[0]+2*r[1]+3*r[2]+4*r[3])/n:9,top:r[0]/m,ren:(r[0]+r[1])/m,avoid:n?1-r[3]/n:0}};
-  const players=L.map((p,i)=>({i,id:p.id,rank:i+1,name:p.name,team:p.team,ti:p.team?tix.get(p.team):-1,adj:p.adj,pt:r1(p.pt),n:p.n,r:p.r,
+  const players=L.map((p,i)=>({i,id:p.id,rank:i+1,name:p.name,team:p.team,ti:tix.has(p.team)?tix.get(p.team):-1,adj:p.adj,pt:r1(p.pt),n:p.n,r:p.r,
     ...stat(p.pt,p.n,p.r)}));
-  const teams=TL.map((t,i)=>({i,rank:i+1,name:t.name,pt:r1(t.pt),n:t.n,r:t.r,mem:t.mem,idle:t.idle,
-    ...stat(t.pt,t.n,t.r)}));
+  const teams=TL.map((t,i)=>({i,rank:i+1,name:t.name,pt:r1(t.pt),raw:t.pt,carry:t.carry,base:t.base,n:t.n,r:t.r,mem:t.mem,idle:t.idle,
+    ...stat(t.gpt,t.n,t.r)}));
   return {players,teams};
 }
+/* リーグごとの集計(必要になったときに計算して、覚えておく)。
+   2次以降のリーグに出るのは、前のリーグの上位チーム。PTは、前のリーグの合計に持ち越しの割合を掛けて引き継ぐ */
+function leagueOf(S,k){
+  if(S.L[k])return S.L[k];
+  const lg=S.leagues[k],games=S.files[k]||[];
+  let teams=null;const carry=new Map();
+  if(k&&S.roster){
+    const up=leagueOf(S,k-1).teams.slice(0,lg.teams);
+    teams=new Set(up.map(t=>t.name));
+    up.forEach(t=>carry.set(t.name,t.raw*lg.carry/100));
+  }
+  const c=compute(games,S.roster,{teams,carry,adj:k===0});
+  return S.L[k]={games,players:c.players,teams:c.teams};
+}
+const lastLeague=S=>{let d=0;S.files.forEach((g,k)=>{if(g.length)d=k});return d};      // 対局記録がある最新のリーグ
+const carryWord=c=>c>=100?"全部":c===50?"半分":c>0?c+"%":"なし";
 /* 大会のキーは 開始年月+枝番(YYYYMMXX) */
 function ymLabel(k){return `${k.slice(0,4)}年${+k.slice(4,6)}月`}
 function evTitle(k){const S=SEASONS.get(k);return S&&S.roster&&S.roster.title||""}
 function evName(k){return evTitle(k)||`${ymLabel(k)} チーム戦`}
-function load(view,tab){
+function load(view,tab,lg){
   CUR=view; if(tab)TAB=tab;
-  const S=SEASONS.get(view), c=compute(S.games,S.roster);
-  D=c.players;T=c.teams;NOGAMES=!S.games.length;
-  const ds=S.games.map(g=>g[0].slice(0,10)).sort(), a=ds[0]||"", b=ds[ds.length-1]||"";
+  const S=SEASONS.get(view),n=S.leagues.length;
+  LG=lg==null?lastLeague(S):Math.max(0,Math.min(n-1,lg));
+  const X=leagueOf(S,LG),lgi=S.leagues[LG],fname=`${view}-games${LG+1}.csv`;
+  D=X.players;T=X.teams;GAMES=X.games;NOGAMES=!GAMES.length;
+  const ds=GAMES.map(g=>g[0].slice(0,10)).sort(), a=ds[0]||"", b=ds[ds.length-1]||"";
   const free=D.filter(d=>d.ti<0).length, title=evTitle(view);
-  const people=NOGAMES&&S.roster?S.roster.size:D.length;
+  const people=NOGAMES&&S.roster?T.reduce((x,t)=>x+t.mem.length+t.idle.length,0):D.length;
   $("ttl").innerHTML=title?`<span>${esc(title)}</span> <span>ランキング</span>`:`<span>${ymLabel(view)}</span> <span>チーム戦ランキング</span>`;
+  $("lgs").hidden=n<2;
+  $("lgs").innerHTML=n<2?"":S.leagues.map((l,k)=>`<button class="lg" role="tab" aria-selected="${k===LG}" data-l="${k}">${esc(l.name)}<span>${k?l.teams:S.roster?leagueOf(S,0).teams.length:""}チーム</span></button>`).join("");
   $("meta").innerHTML=`<span>開催 <b>${ymLabel(view)}</b></span>`+
-    (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${S.games.length}</b></span>`+
+    (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${GAMES.length}</b></span>`+
     (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
-    (S.roster&&free?`<span>うちチーム未登録 <b>${free}</b>人</span>`:"");
+    (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
   const note=!S.roster?`チーム表(${view}.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
-    :NOGAMES?`対局記録(${view}-games.csv)がまだない。チームとメンバーだけを表示している。`
-    :free?`チーム表に載っていないプレイヤーが${free}人いる。その人の成績は個人順位にだけ含め、チーム順位には含めていない。`:"";
+    :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の今の上位${T.length}チームを、進出するチームとして表示している。`
+    :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
+    :free?`チーム順位に含めていないプレイヤーが${free}人いる(チーム表に載っていない${LG?"、またはこのリーグに進んでいないチームの所属":""})。その人の成績は個人順位にだけ含めている。`:"";
   $("notice").textContent=note;$("notice").hidden=!note;
   $("month").value=view;
   if(dlg.open)dlg.close();
@@ -336,7 +376,8 @@ function show(){
   $("tabChart").setAttribute("aria-selected",TAB==="chart");
   $("boxT").hidden=TAB!=="team";$("boxP").hidden=TAB!=="player";$("boxC").hidden=TAB!=="chart";
   $("tools").hidden=TAB==="chart";     // 検索と着順の凡例は、順位表のときだけ
-  const latest=CUR===MONTHS[0], h=(latest?"":CUR)+(TAB==="team"?"":(latest?"":"-")+TAB);
+  const parts=[]; if(CUR!==MONTHS[0])parts.push(CUR); if(LG!==lastLeague(SEASONS.get(CUR)))parts.push("L"+(LG+1)); if(TAB!=="team")parts.push(TAB);
+  const h=parts.join("-");
   try{history.replaceState(null,"",h?"#"+h:location.pathname+location.search)}catch(e){}
   if(TAB==="chart")renderChart(); else render();
 }
@@ -357,18 +398,21 @@ function render(){
   if(TAB==="team"){
     const tb=$("tT"); tb.querySelectorAll("tbody").forEach(x=>x.remove());
     const L=T.filter(t=>!q||hit(t.name)||t.mem.some(i=>hit(D[i].name))||t.idle.some(hit)).sort(by(KEY.team));
+    // 次のリーグがあるとき、合計PT順の表に通過ラインを入れる
+    const S=SEASONS.get(CUR),nx=S.leagues[LG+1],cut=nx&&!NOGAMES&&!q&&KEY.team==="pt"&&nx.teams<T.length?nx.teams:0;
+    const cutRow=cut?`<tbody class="cut"><tr><td colspan="10">通過ライン<span>上位${cut}チームが${esc(nx.name)}へ</span></td></tr></tbody>`:"";
     tb.insertAdjacentHTML("beforeend",L.length?L.map(t=>`<tbody class="tg${!NOGAMES&&t.rank<=3?" top":""}">
 <tr class="trow"><td class="rank">${rankCell(t)}</td>
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
-<tr class="mem"><td></td><td colspan="9"><div class="mems">${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
-</tbody>`).join(""):`<tbody><tr><td colspan="10" class="empty">${SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
+<tr class="mem"><td></td><td colspan="9"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
+</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
 <td class="rank">${rankCell(d)}</td>
 <td class="l name">${esc(d.name)}${adjMark(d)}</td>
-<td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:'<span class="oteam" style="margin:0">未登録</span>'}</td>
+<td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:`<span class="oteam" style="margin:0">${d.team?esc(d.team):"未登録"}</span>`}</td>
 ${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"対局がまだない":"該当するプレイヤーがいない")+'</td></tr>';
   }
 }
@@ -382,9 +426,10 @@ const dlg=$("dlg");
 function openDlg(){ if(!dlg.open)dlg.showModal(); $("dclose").focus({preventScroll:true}); dlg.scrollTop=0 }
 function openTeam(i){
   const t=T[i];
-  $("dscope").textContent=`${evName(CUR)} チーム成績`;
+  const S=SEASONS.get(CUR);
+  $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+S.leagues[LG].name:""} チーム成績`;
   $("dname").textContent=t.name;
-  $("dsub").innerHTML=`<span>チーム <b>${NOGAMES?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`;
+  $("dsub").innerHTML=`<span>チーム <b>${NOGAMES?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG?`<span>うち持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
 <td class="l" style="font-weight:700">${esc(p.name)}${adjMark(p)}</td>
 <td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
@@ -394,7 +439,8 @@ function openTeam(i){
   openDlg();
 }
 document.addEventListener("click",e=>{
-  const b=e.target.closest("[data-t]"); if(b)openTeam(+b.dataset.t);
+  const b=e.target.closest("[data-t]"); if(b){openTeam(+b.dataset.t);return}
+  const l=e.target.closest("[data-l]"); if(l)load(CUR,null,+l.dataset.l);
 });
 $("dclose").addEventListener("click",()=>dlg.close());
 dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
@@ -405,12 +451,11 @@ dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
    線は全チームを控えめな色で描き、選んだ1チームだけを強調する(12本を色だけで見分けるのは無理があるため)。 */
 let HIST=null,PIN=0,HOV=null,CX=null,GEO=null;
 function rankHistory(S){
-  if(!S.roster||!S.games.length||!T.length) return null;
-  const days=[...new Set(S.games.map(g=>g[0].slice(0,10)))].sort();
+  if(!S.roster||!GAMES.length||!T.length) return null;
+  const days=[...new Set(GAMES.map(g=>g[0].slice(0,10)))].sort();
   const di=new Map(days.map((d,i)=>[d,i])), tix=new Map(T.map(t=>[t.name,t.i]));
-  const gain=T.map(()=>days.map(()=>0)), base=T.map(()=>0);
-  for(const [,x] of S.roster){const i=tix.get(x.team); if(i!=null)base[i]+=x.adj}
-  for(const [st,seats] of S.games){const d=di.get(st.slice(0,10));
+  const gain=T.map(()=>days.map(()=>0)), base=T.map(t=>t.base);      // 持ち越しPTから始める
+  for(const [st,seats] of GAMES){const d=di.get(st.slice(0,10));
     for(const [id,,pt] of seats){const x=S.roster.get(id),i=x?tix.get(x.team):null; if(i!=null)gain[i][d]+=pt}}
   const pts=T.map((t,i)=>{let s=base[i];return gain[i].map(v=>r1(s+=v))});
   const ranks=T.map(()=>[]);
@@ -454,6 +499,9 @@ function drawChart(){
     if(on||m===1) g+=HIST.ranks[ti].map((r,i)=>`<circle class="cdot${on?" on":""}" cx="${X(i)}" cy="${Y(r)}" r="${on?4.5:3.5}"/>`).join("");
     g+=`<text class="clab${on?" on":""}" x="${X(m-1)+12}" y="${Y(last)+4}">${esc(T[ti].name)}</text>`;
   }
+  const S=SEASONS.get(CUR),nx=S.leagues[LG+1];
+  if(nx&&nx.teams<n){const y=(Y(nx.teams)+Y(nx.teams+1))/2;        // 通過ライン
+    g+=`<line class="ccut" x1="${L-6}" y1="${y}" x2="${X(m-1)+6}" y2="${y}"/><text class="ccutl" x="${X(m-1)+12}" y="${y+3.5}">通過ライン</text>`}
   g+=`<line class="ccross" id="ccross" x1="0" y1="${top-8}" x2="0" y2="${Y(n)+8}" visibility="hidden"/>`;
   const svg=$("csvg");
   svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("width",W);svg.setAttribute("height",H);
@@ -533,12 +581,14 @@ function toGames(text){
       if(!raw||isNaN(pt)) throw new Error(`${k+2}行目の${i}位のデータが読めない。`);
       seats.push(m?[m[1],m[2],pt]:[raw,raw,pt]);
     }
-    games.push([(r[col("開始時間")]||"").trim(),seats]);
+    const lk=col("牌譜リンク");
+    games.push([(r[col("開始時間")]||"").trim(),seats,lk>=0?(r[lk]||"").trim():""]);
   });
   if(!games.length) throw new Error("集計できる対局がない。");
   return games;
 }
-/* チーム表のCSV(チーム表作成ページの出力)。使うのは「大会名」「チーム名」「プレイヤー名」「プレイヤーID」の列。
+/* チーム表のCSV(チーム表作成ページの出力)。使うのは「大会名」「チーム名」「プレイヤー名」「プレイヤーID」「リーグ構成」の列。
+   「リーグ構成」は 予選:12/セミファイナル:6:50/ファイナル:4:0 の形(名前:チーム数:持ち越しの%)。無ければ1次リーグだけ。
    「点数修正」の列があれば、その分を合計PTに足す */
 function toRoster(text){
   const rows=parseCSV(text.replace(/^﻿/,""));
@@ -551,7 +601,10 @@ function toRoster(text){
     R.set(id,{team,name:cn>=0?(r[cn]||"").trim():"",adj:ca>=0?parseFloat(r[ca])||0:0});
   });
   if(!R.size) throw new Error("チーム表にチーム名の入った行がない。");
-  R.title=ce>=0?((rows.slice(1).find(r=>(r[ce]||"").trim())||[])[ce]||"").trim():"";
+  const first=c=>c>=0?((rows.slice(1).find(r=>(r[c]||"").trim())||[])[c]||"").trim():"";
+  R.title=first(ce);
+  R.leagues=first(h.indexOf("リーグ構成")).split("/").map(x=>{const [name,teams,carry]=x.split(":");
+    return {name:(name||"").trim(),teams:Math.floor(+teams)||0,carry:Math.max(0,Math.min(100,+carry||0))}}).filter(l=>l.name);
   return R;
 }
 function decode(buf){
@@ -561,8 +614,8 @@ function fail(msg){$("tT").querySelectorAll("tbody").forEach(x=>x.remove());$("t
 
 /* データの置き場所。
    データ用リポジトリ(DATA_REPO)に、1大会につき2つのCSVを置く。YYYYMMXX は 開始年4桁+開始月2桁+枝番2桁。
-     YYYYMMXX.csv        … チーム表(チーム表作成ページ event-create の出力)
-     YYYYMMXX-games.csv  … 対局記録(雀魂の「牌譜履歴」)
+     YYYYMMXX.csv         … チーム表(チーム表作成ページ event-create の出力)
+     YYYYMMXX-games1.csv  … 1次リーグの対局記録(雀魂の「牌譜履歴」)。2次リーグは -games2.csv、以降も同じ
    リポジトリ名を変えたら、ここも変える。フォルダに入れるなら DATA_DIR を "フォルダ名/" にする。 */
 const DATA_REPO="event-data";
 const DATA_DIR="";
@@ -576,16 +629,18 @@ async function fetchData(name){
   return r||{ok:false,status:0};
 }
 const p2=v=>String(v).padStart(2,"0");
+let FILES=null;      // APIで取れたファイル名の一覧(取れなければ null のまま、1つずつ確かめる)
 const isKey=s=>/^\d{4}(0[1-9]|1[0-2])(0[1-9]|[1-9]\d)$/.test(s);
 /* 大会のファイルを探す
-   1. GitHubのAPIでファイル一覧を取り、YYYYMMXX.csv と YYYYMMXX-games.csv をすべて拾う
+   1. GitHubのAPIでファイル一覧を取り、YYYYMMXX.csv と YYYYMMXX-games1.csv などをすべて拾う
    2. APIが使えないとき(回数制限・手元での確認など)は、来月から過去へ順に、枝番01から確かめる */
 async function listByApi(){
   if(!REPO_OWNER) return null;
   try{
     const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${DATA_REPO}/contents/${DATA_DIR.replace(/\/$/,"")}?t=${Date.now()}`);
     if(!r.ok) return null;
-    const keys=(await r.json()).map(f=>(f.name.match(/^(\d{8})(-games)?\.csv$/)||[])[1]).filter(k=>k&&isKey(k));
+    FILES=new Set((await r.json()).map(f=>f.name));
+    const keys=[...FILES].map(n=>(n.match(/^(\d{8})(-games\d)?\.csv$/)||[])[1]).filter(k=>k&&isKey(k));
     return [...new Set(keys)];
   }catch(e){return null}
 }
@@ -610,16 +665,25 @@ async function probeBackward(){
   return found;
 }
 const BAD=[];
-/* 1大会分を読む。チーム表だけある(対局前)・対局記録だけある、のどちらでも表示する */
+/* 1大会分を読む。チーム表だけある(対局前)・対局記録だけある、のどちらでも表示する。
+   対局記録はリーグごとのファイル。同じ対局が前のリーグのファイルにもあれば、前のリーグの対局として1回だけ数える
+   (雀魂で1つの大会を続けて使うと、あとのリーグの牌譜履歴に前のリーグの対局も入るため) */
 async function loadSeason(key){
-  const [t,g]=await Promise.all([fetchData(`${key}.csv`),fetchData(`${key}-games.csv`)]);
-  if(!t.ok&&!g.ok) return null;
-  let games=[],roster=null;
-  if(g.ok) try{games=toGames(decode(await g.arrayBuffer()))}
-  catch(err){console.warn(key,err);BAD.push(`${key}-games.csv(${err.message})`)}
+  const get=n=>!FILES||FILES.has(n)?fetchData(n):Promise.resolve({ok:false});
+  const t=await get(`${key}.csv`);
+  let roster=null;
   if(t.ok) try{roster=toRoster(decode(await t.arrayBuffer()))}
   catch(err){console.warn(key,err);BAD.push(`${key}.csv(${err.message})`)}
-  return games.length||roster?{games,roster}:null;
+  const leagues=roster&&roster.leagues.length?roster.leagues:[{name:"",teams:0,carry:0}];
+  const res=await Promise.all(leagues.map((_,k)=>get(`${key}-games${k+1}.csv`)));
+  const files=[],seen=new Set();
+  for(let k=0;k<leagues.length;k++){
+    let g=[];
+    if(res[k].ok) try{g=toGames(decode(await res[k].arrayBuffer()))}
+    catch(err){console.warn(key,err);BAD.push(`${key}-games${k+1}.csv(${err.message})`)}
+    files[k]=g.filter(x=>{const id=x[2]||x[0]+"/"+x[1].map(v=>v[0]).join(); if(seen.has(id))return false; seen.add(id);return true});
+  }
+  return roster||files.some(g=>g.length)?{roster,leagues,files,L:[]}:null;
 }
 (async()=>{
   const listed=await listByApi();
@@ -628,12 +692,12 @@ async function loadSeason(key){
     : await probeBackward();
   for(const [ym,s] of res) if(s) SEASONS.set(ym,s);
   MONTHS=[...SEASONS.keys()].sort().reverse();
-  if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001.csv、対局記録を 20261001-games.csv のような名前で置いてほしい。`);return}
+  if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001.csv、対局記録を 20261001-games1.csv のような名前で置いてほしい。`);return}
   $("month").innerHTML=MONTHS.map(k=>`<option value="${k}">${esc(evTitle(k)?`${evTitle(k)}(${ymLabel(k)})`:`${ymLabel(k)} 枝番${k.slice(6)}`)}</option>`).join("");
   $("past").hidden=MONTHS.length<2;
-  const m=location.hash.slice(1).match(/^(\d{8})?-?(player|chart)?$/)||[];
+  const m=location.hash.slice(1).match(/^(\d{8})?-?(?:L(\d))?-?(player|chart)?$/)||[];
   const view=SEASONS.has(m[1])?m[1]:MONTHS[0];
-  load(view,m[2]||(SEASONS.get(view).roster?"team":"player"));
+  load(view,m[3]||(SEASONS.get(view).roster?"team":"player"),m[2]?+m[2]-1:null);
   if(BAD.length) console.warn("読めなかったCSV:",BAD);
 })();
 $("tabTeam").addEventListener("click",()=>{if(CUR){TAB="team";show()}});
