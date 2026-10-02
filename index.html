@@ -200,6 +200,13 @@ tbody.cut tr:hover td{background:var(--accent-soft)}
 .ccutl{font-size:10px;fill:var(--accent);font-weight:700}
 tbody.prep tr:last-child td{border-bottom:1px solid var(--line);padding:16px}
 tbody.prep tr:hover td{background:transparent}
+
+/* 大会のプルダウン */
+.evrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0}
+.evrow label{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.08em}
+.evrow select{flex:0 1 420px;min-width:0;max-width:100%;font:inherit;font-size:16px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer}
+.evrow select:hover{border-color:var(--accent)}
+.evrow select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 </style>
 </head>
 <body>
@@ -214,6 +221,10 @@ tbody.prep tr:hover td{background:transparent}
   </div>
   </div>
 </header>
+<div class="evrow" id="past" hidden>
+  <label for="month">大会</label>
+  <select id="month"></select>
+</div>
 <div class="tools" id="tools">
   <input id="q" class="search" type="search" placeholder="チーム名・プレイヤー名で検索" aria-label="チーム名・プレイヤー名で検索">
   <div class="legend"><span><i style="background:var(--r1)"></i>1位</span><span><i style="background:var(--r2)"></i>2位</span><span><i style="background:var(--r3)"></i>3位</span><span><i style="background:var(--r4)"></i>4位</span></div>
@@ -228,9 +239,6 @@ tbody.prep tr:hover td{background:transparent}
     <button class="tab" role="tab" id="tabPlayer" aria-selected="false">個人順位</button>
     <button class="tab" role="tab" id="tabChart" aria-selected="false">順位グラフ</button>
   </div>
-  <label class="past" id="past" hidden>ほかの大会
-    <select id="month" aria-label="表示する大会を選ぶ"></select>
-  </label>
 </div>
 </div>
 <p class="notice" id="notice" hidden></p>
@@ -707,7 +715,7 @@ async function loadSeason(key){
   for(const [ym,s] of res) if(s) SEASONS.set(ym,s);
   MONTHS=[...SEASONS.keys()].sort().reverse();
   if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001.csv、対局記録を 20261001-games1.csv のような名前で置いてほしい。`);return}
-  $("month").innerHTML=MONTHS.map(k=>`<option value="${k}">${esc(evTitle(k)?`${evTitle(k)}(${ymLabel(k)})`:`${ymLabel(k)} 枝番${k.slice(6)}`)}</option>`).join("");
+  $("month").innerHTML=MONTHS.map(k=>`<option value="${k}">${esc(evTitle(k)?`${evTitle(k)}(${ymLabel(k)})`:`${ymLabel(k)}のチーム戦 枝番${k.slice(6)}`)}</option>`).join("");
   $("past").hidden=MONTHS.length<2;
   const m=location.hash.slice(1).match(/^(\d{8})?-?(?:L(\d))?-?(player|chart)?$/)||[];
   const view=SEASONS.has(m[1])?m[1]:MONTHS[0];
