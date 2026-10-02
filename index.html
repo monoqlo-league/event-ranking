@@ -344,7 +344,7 @@ td.gap.plus{color:var(--plus)}td.gap.minus{color:var(--minus)}
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過圏のチームは圏外でいちばん上のチームとの差、圏外のチームは通過圏でいちばん下のチームとの差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 
 </div>
 
@@ -505,15 +505,15 @@ function render(){
     const L=T.filter(t=>!q||hit(t.name)||t.mem.some(i=>hit(D[i].name))||t.idle.some(hit)).sort(by(KEY.team));
     // 次のリーグがあるとき、合計PT順の表に通過ラインを入れる
     const S=SEASONS.get(CUR),nx=S.leagues[LG+1],cut=nx&&!NORANK&&!q&&KEY.team==="pt"&&nx.teams<T.length?nx.teams:0;
-    /* PTの差の列。最後のリーグはトップとの差。それ以外は通過ライン(ボーダー)との差:
-       通過圏のチームは、圏外でいちばん上のチームとの差(＋)。圏外のチームは、通過圏でいちばん下のチームとの差(−) */
+    /* PTの差の列。最後のリーグはトップ(1位)との差。それ以外はボーダーとの差。
+       ボーダーは、通過できるいちばん下の順位のチーム(4チーム通過なら4位)。どのチームも、そのチームとの差を出す。基準のチーム自身は — */
     const line=nx&&nx.teams<T.length?nx.teams:0;
     $("thGap").textContent=nx?"ボーダーとの差":"トップとの差";
     const gap=t=>{
       if(NORANK||T.length<2)return null;
       if(!nx)return t.rank===1?null:r1(t.raw-T[0].raw);
       if(!line)return null;
-      return r1(t.raw-(t.rank<=line?T[line]:T[line-1]).raw);
+      return t.rank===line?null:r1(t.raw-T[line-1].raw);
     };
     const gapCell=t=>{const v=gap(t);return v==null?'<td class="num gap">—</td>':`<td class="num gap ${sign(v)}">${f(v,1)}</td>`};
     const cutRow=cut?`<tbody class="cut"><tr><td colspan="11">通過ライン<span>上位${cut}チームが${esc(nx.name)}へ</span></td></tr></tbody>`:"";
