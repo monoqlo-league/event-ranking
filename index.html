@@ -372,7 +372,7 @@ function load(view,tab,lg){
     (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
     (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
   const note=!S.roster?`チーム表(${view}.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
-    :PENDING?`${S.leagues[LG-1].name}がまだ始まっていないため、${lgi.name}に進むチームは決まっていない。`
+    :PENDING?`${S.leagues[LG-1].name}がまだ終了していないため、${lgi.name}に進むチームは決まっていない。`
     :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の今の上位${T.length}チームを、進出するチームとして表示している。`
     :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
     :free?`チーム順位に含めていないプレイヤーが${free}人いる(チーム表に載っていない${LG?"、またはこのリーグに進んでいないチームの所属":""})。その人の成績は個人順位にだけ含めている。`:"";
