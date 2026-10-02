@@ -360,7 +360,7 @@ const f=(v,s)=>(v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const r1=v=>Math.round(v*10)/10;
 const sign=v=>v>=0?"plus":"minus";
-let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false,LG=0,GAMES=[],PENDING=false;
+let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false,NORANK=false,LG=0,GAMES=[],PENDING=false;
 
 /* 集計。games=対局記録、roster=チーム表(プレイヤーID→{team,name,adj})。チーム表が無ければ roster=null。
    opt.teams = このリーグに出るチーム名の集合(null なら全チーム)
@@ -441,6 +441,8 @@ function load(view,tab,lg){
   LG=lg==null?lastLeague(S):Math.max(0,Math.min(n-1,lg));
   const X=leagueOf(S,LG),lgi=S.leagues[LG],fname=`${view}-games${LG+1}.csv`;
   D=X.players;T=X.teams;GAMES=X.games;NOGAMES=!GAMES.length;PENDING=X.pending;
+  /* 対局前は順位を付けない。ただし2次以降のリーグは、進むチームが決まっていれば、持ち越したPTの順で順位を付ける */
+  NORANK=NOGAMES&&!(LG&&T.length);
   const ds=GAMES.map(g=>g[0].slice(0,10)).sort(), a=ds[0]||"", b=ds[ds.length-1]||"";
   const free=D.filter(d=>d.ti<0).length, title=evTitle(view);
   const people=NOGAMES&&S.roster?T.reduce((x,t)=>x+t.mem.length+t.idle.length,0):D.length;
@@ -457,7 +459,7 @@ function load(view,tab,lg){
     (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
   const note=!S.roster?`チーム表(${view}-master.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
     :PENDING?`${S.leagues[LG-1].name}がまだ終了していないため、${lgi.name}に進むチームは決まっていない。`
-    :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の${X.prov?"今の":""}上位${T.length}チームを、進出するチームとして表示している。`
+    :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の${X.prov?"今の":""}上位${T.length}チームを、進出するチームとして表示している。順位は、持ち越したPTの順。`
     :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
     :free?`チーム順位に含めていないプレイヤーが${free}人いる(チーム表に載っていない${LG?"、またはこのリーグに進んでいないチームの所属":""})。その人の成績は個人順位にだけ含めている。`:"";
   $("notice").textContent=note;$("notice").hidden=!note;
@@ -480,7 +482,7 @@ function show(){
   if(TAB==="chart")renderChart(); else if(TAB==="schedule")renderSched(); else render();
 }
 const bar=d=>`<div class="bar">${d.r.map(c=>`<span style="width:${d.n?c/d.n*100:0}%"></span>`).join("")}</div><div class="counts">${d.r.join(" / ")}</div>`;
-const rankCell=d=>NOGAMES?"—":d.rank<=3?`<span class="medal m${d.rank}">${d.rank}</span>`:d.rank;   // 対局前は順位を付けない
+const rankCell=d=>NORANK?"—":d.rank<=3?`<span class="medal m${d.rank}">${d.rank}</span>`:d.rank;   // 順位を付けられないときは —
 const stats=d=>`<td class="pt ${sign(d.pt)}">${f(d.pt,1)}</td>
 <td class="num">${d.n}</td>
 <td class="num ${sign(d.avg)}">${d.n?f(d.avg,2):"—"}</td>
@@ -497,11 +499,11 @@ function render(){
     const tb=$("tT"); tb.querySelectorAll("tbody").forEach(x=>x.remove());
     const L=T.filter(t=>!q||hit(t.name)||t.mem.some(i=>hit(D[i].name))||t.idle.some(hit)).sort(by(KEY.team));
     // 次のリーグがあるとき、合計PT順の表に通過ラインを入れる
-    const S=SEASONS.get(CUR),nx=S.leagues[LG+1],cut=nx&&!NOGAMES&&!q&&KEY.team==="pt"&&nx.teams<T.length?nx.teams:0;
+    const S=SEASONS.get(CUR),nx=S.leagues[LG+1],cut=nx&&!NORANK&&!q&&KEY.team==="pt"&&nx.teams<T.length?nx.teams:0;
     const cutRow=cut?`<tbody class="cut"><tr><td colspan="10">通過ライン<span>上位${cut}チームが${esc(nx.name)}へ</span></td></tr></tbody>`:"";
-    // 対局前は、表のいちばん上に「対局準備中」と出す(その下に、チームとメンバーを順位なしで並べる)
+    // 対局前は、表のいちばん上に「対局準備中」と出す(その下に、チームとメンバーを並べる。2次以降のリーグは、持ち越したPTの順位を付ける)
     const prep=NOGAMES?'<tbody class="prep"><tr><td colspan="10" class="empty">🀄対局準備中🀄</td></tr></tbody>':"";
-    tb.insertAdjacentHTML("beforeend",L.length?prep+L.map(t=>`<tbody class="tg${!NOGAMES&&t.rank<=3?" top":""}">
+    tb.insertAdjacentHTML("beforeend",L.length?prep+L.map(t=>`<tbody class="tg${!NORANK&&t.rank<=3?" top":""}">
 <tr class="trow"><td class="rank">${rankCell(t)}</td>
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
@@ -529,7 +531,7 @@ function openTeam(i){
   const S=SEASONS.get(CUR);
   $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+S.leagues[LG].name:""} チーム成績`;
   $("dname").textContent=t.name;
-  $("dsub").innerHTML=`<span>チーム <b>${NOGAMES?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG?`<span>うち持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
+  $("dsub").innerHTML=`<span>チーム <b>${NORANK?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG?`<span>うち持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
 <td class="l" style="font-weight:700">${esc(p.name)}${adjMark(p)}</td>
 <td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
