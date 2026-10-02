@@ -222,7 +222,7 @@ tbody.prep tr:hover td{background:transparent}
 .tbs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(276px,1fr);gap:10px;overflow-x:auto;min-width:0;padding-bottom:2px}
 .tcard{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface);min-width:0}
 .tch{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border-bottom:1px solid var(--line)}
-.tch b{font-family:"IBM Plex Mono","Zen Kaku Gothic New",monospace;font-weight:600;color:var(--accent)}
+.tch b{font-weight:700;color:var(--accent)}
 .tch span{font-size:11px;color:var(--muted)}
 .tcard.done .tch span{color:var(--accent);font-weight:700}
 .tct{min-width:0;table-layout:fixed;font-size:14px}
@@ -693,7 +693,7 @@ function schedRounds(S,k){
   const nm=x=>map&&map.get(x)||x,slot=x=>map&&map.has(x)?x:"";
   const sch=L?L.rounds:[],lastNo=sch.length?sch[sch.length-1].no:0;
   const per=sch.length?Math.max(1,...sch.map(r=>r.tables.length)):Math.max(1,Math.floor(X.teams.length/4));
-  const res=resultRounds(S,X.games,per),out=[];
+  const res=resultRounds(S,X.games,per),out=[],byTable=tableOrder(L?L.order:[]);
   for(let i=0;i<Math.max(sch.length,res.length);i++){
     const s=sch[i]||null,r=res[i]||null;
     const plan=s?s.tables.map(([tb,seats])=>({tb,rows:seats.map((x,j)=>x==null?null:{seat:SEAT[j],team:nm(x),slot:slot(x)}).filter(Boolean)})):[];
@@ -709,14 +709,14 @@ function schedRounds(S,k){
       const taken=new Set(plan.map(p=>p.tb));
       r.games.forEach((g,gi)=>{
         const [pi]=at.get(gi)||[-1],p=pi>=0?plan[pi]:null;
-        let tb=p?p.tb:"";if(!tb){tb=[...LET].find(c=>!taken.has(c))||"?";taken.add(tb)}
+        let tb=p?p.tb:"";if(!tb){tb=[...LET].map(c=>c+"卓").find(c=>!taken.has(c))||"?";taken.add(tb)}      // 予定にない卓は A卓・B卓…
         rd.tables.push({tb,done:true,rows:g});
       });
       /* まだ対局記録のない卓は、出るチームがこの回戦の対局記録にいなければ、予定として残す */
       plan.forEach((p,pi)=>{if(!used.has(pi)&&!p.rows.some(x=>r.seen.has(x.team)))rd.tables.push({tb:p.tb,done:false,rows:p.rows})});
       if(s&&s.rest.length){const shown=new Set(rd.tables.flatMap(t=>t.rows.map(x=>x.team)));rd.rest=L.teams.map(nm).filter(n=>!shown.has(n))}
     }
-    rd.tables.sort((a,b)=>a.tb<b.tb?-1:a.tb>b.tb?1:0);
+    rd.tables.sort((a,b)=>byTable(a.tb,b.tb));
     out.push(rd);
   }
   return out;
@@ -753,7 +753,7 @@ function renderSched(){
 <td class="sc">${done&&x.score!=null?pts(x.score):"—"}</td><td class="gp ${done?sign(x.pt):""}">${done?f(x.pt,1):"—"}</td></tr>`};
   const list=days.length?R.filter(rd=>rd.date===SDAY):R;      // 日付のないスケジュールは、全部の回戦を出す
   $("srounds").innerHTML=list.map(rd=>`<section class="rdblock" aria-label="第${rd.no}戦"><h3 class="rdh">第${rd.no}戦</h3>
-<div class="tbs">${rd.tables.map(t=>`<div class="tcard${t.done?" done":""}" data-tb="${esc(t.tb)}"><div class="tch"><b>${esc(t.tb)}卓</b><span>${t.done?"終了":"対局前"}</span></div>
+<div class="tbs">${rd.tables.map(t=>`<div class="tcard${t.done?" done":""}" data-tb="${esc(t.tb)}"><div class="tch"><b>${esc(t.tb)}</b><span>${t.done?"終了":"対局前"}</span></div>
 <table class="tct"><thead><tr><th>${t.done?"順位":"席"}</th><th class="l">${t.done?"プレイヤー":"チーム"}</th><th>点棒</th><th>獲得PT</th></tr></thead><tbody>${t.rows.map(x=>line(x,t.done)).join("")}</tbody></table></div>`).join("")}</div>
 ${rd.rest.length?`<p class="rrest${rd.rest.includes(SPIN)?" on":""}"><b>抜け番</b>${rd.rest.map(esc).join("、")}</p>`:""}</section>`).join("");
 }
@@ -818,22 +818,25 @@ function toRoster(text){
   return R;
 }
 /* スケジュールのCSV(対局スケジュール作成ツール event-schedule の出力)。1行が1チーム。
-   「リーグ」「チーム」と「第1戦」「第2戦」…の列を使う。各回戦の欄は「2026-09-05(土) A卓 東」または「2026-09-05(土) 抜け番」(日付は無くてもよい)。
-   リーグ名 → {name,teams:[枠またはチーム名],wdays,perDay,rounds:[{no,date,tables:[[卓,[東,南,西,北]]],rest:[]}]} を返す */
+   「リーグ」「チーム」と「第1戦」「第2戦」…の列を使う。各回戦の欄は「2026-09-05(土) 薔薇 東」(日付・卓の名前・席)または「2026-09-05(土) 抜け番」。日付は無くてもよい。
+   卓の名前は自由(古い形式の「A卓」もそのまま名前として扱う)。「卓」の列(薔薇/金木犀/向日葵)があれば、その順に卓を並べる。
+   リーグ名 → {name,teams:[枠またはチーム名],wdays,perDay,order:[卓の名前],rounds:[{no,date,tables:[[卓,[東,南,西,北]]],rest:[]}]} を返す */
+/* 卓の並べ方。「卓」の列にある順。そこに無い名前は、そのあとに名前の順 */
+const tableOrder=order=>(a,b)=>{const i=order.indexOf(a),j=order.indexOf(b);return (i<0?1e6:i)-(j<0?1e6:j)||(a<b?-1:a>b?1:0)};
 function toSchedule(text){
   const rows=parseCSV(text.replace(/^﻿/,""));
   if(rows.length<2) throw new Error("スケジュールにデータ行がない。");
-  const h=rows[0].map(s=>s.trim()),cl=h.indexOf("リーグ"),ct=h.indexOf("チーム"),cw=h.indexOf("開催曜日"),cp=h.indexOf("1日の試合数");
+  const h=rows[0].map(s=>s.trim()),cl=h.indexOf("リーグ"),ct=h.indexOf("チーム"),cw=h.indexOf("開催曜日"),cp=h.indexOf("1日の試合数"),co=h.indexOf("卓");
   const rc=h.map((x,i)=>{const m=x.match(/^第(\d+)戦$/);return m?[i,+m[1]]:null}).filter(Boolean);
   if(ct<0||!rc.length) throw new Error("スケジュールに「チーム」「第1戦」の列がない。");
   const M=new Map();
   rows.slice(1).forEach((r,k)=>{
     const lg=cl>=0?(r[cl]||"").trim():"",team=(r[ct]||"").trim(); if(!team)return;
-    let L=M.get(lg); if(!L){L={name:lg,teams:[],wdays:cw>=0?(r[cw]||"").trim():"",perDay:cp>=0?parseInt(r[cp])||0:0,rd:new Map()};M.set(lg,L)}
+    let L=M.get(lg); if(!L){L={name:lg,teams:[],wdays:cw>=0?(r[cw]||"").trim():"",perDay:cp>=0?parseInt(r[cp])||0:0,order:co>=0?(r[co]||"").split("/").map(x=>x.trim()).filter(Boolean):[],rd:new Map()};M.set(lg,L)}
     L.teams.push(team);
     for(const [c,no] of rc){
       const v=(r[c]||"").trim(); if(!v)continue;
-      const m=v.match(/^(?:(\d{4}-\d\d-\d\d)(?:\([^)]*\))?\s+)?(?:([A-Z])卓\s*([東南西北])|抜け番)$/);
+      const m=v.match(/^(?:(\d{4}-\d\d-\d\d)(?:\([^)]*\))?\s+)?(?:抜け番|(.+?)\s*([東南西北]))$/);
       if(!m) throw new Error(`${k+2}行目の第${no}戦「${v}」が読めない。`);
       let rd=L.rd.get(no); if(!rd){rd={no,date:"",tb:new Map(),rest:[]};L.rd.set(no,rd)}
       if(m[1])rd.date=m[1];
@@ -842,7 +845,8 @@ function toSchedule(text){
     }
   });
   for(const L of M.values()){
-    L.rounds=[...L.rd.values()].sort((a,b)=>a.no-b.no).map(rd=>({no:rd.no,date:rd.date,rest:rd.rest,tables:[...rd.tb.entries()].sort((a,b)=>a[0]<b[0]?-1:1)}));
+    const by=tableOrder(L.order);
+    L.rounds=[...L.rd.values()].sort((a,b)=>a.no-b.no).map(rd=>({no:rd.no,date:rd.date,rest:rd.rest,tables:[...rd.tb.entries()].sort((a,b)=>by(a[0],b[0]))}));
     delete L.rd;
   }
   if(!M.size) throw new Error("スケジュールにチームの入った行がない。");
