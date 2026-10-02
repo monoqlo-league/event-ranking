@@ -122,7 +122,7 @@ footer{font-size:12px;color:var(--muted)}
 /* チーム戦ランキング用の追加 */
 .wrap{max-width:960px}
 #tP{min-width:860px}
-.tname{all:unset;cursor:pointer;font-size:13px;color:var(--muted);max-width:9em;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+.tname{all:unset;cursor:pointer;font-size:13px;color:var(--muted);display:inline-block;vertical-align:bottom}
 .tname:hover{color:var(--accent)}
 .tname:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 .tg .trow td{border-bottom:0;padding-bottom:3px}
@@ -130,7 +130,7 @@ footer{font-size:12px;color:var(--muted)}
 .tg:last-child .mem td{border-bottom:0}
 .tg:hover td{background:var(--accent-soft)}
 .tg.top td{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
-.tg .pname{max-width:16em}
+.tg .pname{max-width:none}
 .mems{display:flex;flex-wrap:wrap;gap:6px}
 .chip{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;gap:7px;align-items:baseline;font-size:12px;line-height:1.5;padding:2px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink)}
 .chip b{font-family:"IBM Plex Mono",monospace;font-weight:500;font-variant-numeric:tabular-nums}
@@ -231,9 +231,9 @@ tbody.prep tr:hover td{background:transparent}
 .tct th:nth-child(1){width:44px}.tct th:nth-child(3){width:64px}.tct th:nth-child(4){width:70px}
 .tct td{padding:7px 6px;text-align:center;vertical-align:middle}
 .tct td.seat{font-weight:700;color:var(--muted)}
-.tct td.tm{text-align:left;font-weight:700;overflow:hidden;text-overflow:ellipsis}
-.tct td.tm span{display:block;overflow:hidden;text-overflow:ellipsis}
-.tct td.tm small{display:block;font-size:10px;font-weight:400;color:var(--muted);line-height:1.3;overflow:hidden;text-overflow:ellipsis}
+.tct td.tm{text-align:left;font-weight:700;white-space:normal;overflow-wrap:anywhere;line-height:1.35}
+.tct td.tm span{display:block}
+.tct td.tm small{display:block;font-size:10px;font-weight:400;color:var(--muted);line-height:1.3}
 .tct td.tm.tbd{color:var(--muted);font-weight:400}
 .tct td.rk{font-family:"IBM Plex Mono",monospace;font-weight:600}
 .tct td.gp{font-family:"IBM Plex Mono",monospace;font-weight:600;text-align:right;padding-right:10px}
@@ -260,6 +260,10 @@ td.gap.plus{color:var(--plus)}td.gap.minus{color:var(--minus)}
 .vs.rec td,.vs.rec th{padding:8px 7px}
 #dsvg{display:block}
 #secChart{margin-bottom:0}
+
+/* チーム名・プレイヤー名は省略しない(長い名前は、表を横に広げるか折り返す) */
+td.name{max-width:none;overflow:visible;text-overflow:clip}
+.pname{max-width:none;overflow:visible;text-overflow:clip}
 </style>
 </head>
 <body>
@@ -626,7 +630,9 @@ function renderChart(){
 function chartMarkup(H0,hi,W){
   const n=T.length,days=H0.days,m=days.length;
   const rowH=Math.max(20,Math.min(32,Math.floor(400/n)));
-  const L=40,R=140,top=30,H=top+(n-1)*rowH+46;
+  /* 右の余白は、いちばん長いチーム名が切れない幅にする(全角は約12.5px、半角は約7.5pxとして見積もる) */
+  const labelW=Math.max(0,...T.map(t=>[...t.name].reduce((w,ch)=>w+(ch.charCodeAt(0)>255?12.5:7.5),0)));
+  const L=40,R=Math.max(140,Math.ceil(labelW)+28),top=30,H=top+(n-1)*rowH+46;
   const X=i=>m>1?L+i*(W-L-R)/(m-1):L+(W-L-R)/2, Y=r=>top+(r-1)*rowH;
   // 開催日ごとの順位を、直線でつなぐ
   const path=ti=>H0.ranks[ti].map((r,i)=>`${i?"L":"M"}${X(i)} ${Y(r)}`).join("");
