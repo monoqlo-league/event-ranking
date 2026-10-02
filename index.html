@@ -728,6 +728,8 @@ function schedRounds(S,k){
   }
   return out;
 }
+/* 卓の表示名。名前のあとに「卓」を付ける(薔薇 → 薔薇卓)。もともと「卓」で終わる名前(A卓 など)はそのまま */
+const tableLabel=n=>/卓$/.test(n)?n:n+"卓";
 function renderSched(){
   const S=SEASONS.get(CUR),L=shownSched(S,LG),R=schedRounds(S,LG),none=!R.length;
   /* スケジュールのCSVがないリーグは、終わった対局の結果だけを出す。対局が1つも終わっていなければ、卓は何も出さない */
@@ -759,7 +761,7 @@ function renderSched(){
 <td class="sc">${done&&x.score!=null?pts(x.score):"—"}</td><td class="gp ${done?sign(x.pt):""}">${done?f(x.pt,1):"—"}</td></tr>`};
   const list=days.length?R.filter(rd=>rd.date===SDAY):R;      // 日付のないスケジュールは、全部の回戦を出す
   $("srounds").innerHTML=list.map(rd=>`<section class="rdblock" aria-label="第${rd.no}戦"><h3 class="rdh">第${rd.no}戦</h3>
-<div class="tbs">${rd.tables.map(t=>`<div class="tcard${t.done?" done":""}" data-tb="${esc(t.tb)}"><div class="tch"><b>${esc(t.tb)}</b><span>${t.done?"終了":"対局前"}</span></div>
+<div class="tbs">${rd.tables.map(t=>`<div class="tcard${t.done?" done":""}" data-tb="${esc(t.tb)}"><div class="tch"><b>${esc(tableLabel(t.tb))}</b><span>${t.done?"終了":"対局前"}</span></div>
 <table class="tct"><thead><tr><th>${t.done?"順位":"席"}</th><th class="l">${t.done?"プレイヤー":"チーム"}</th><th>点棒</th><th>獲得PT</th></tr></thead><tbody>${t.rows.map(x=>line(x,t.done)).join("")}</tbody></table></div>`).join("")}</div>
 ${rd.rest.length?`<p class="rrest${rd.rest.includes(SPIN)?" on":""}"><b>抜け番</b>${rd.rest.map(esc).join("、")}</p>`:""}</section>`).join("");
 }
