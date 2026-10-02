@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MONOQLO チーム戦ランキング</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f3f5f2;--surface:#ffffff;--ink:#17201b;--muted:#5d6b63;--line:#dde3dd;
+  --accent:#1d6a4f;--accent-soft:#e2efe8;--plus:#1d6a4f;--minus:#b23a2e;
+  --r1:#1d6a4f;--r2:#6fa58c;--r3:#c9b98f;--r4:#c7695c;
+  --gold:#b58a1f;--stalk:#8dbb6a;--node:#5f8f45;--leaf:#4f9a4a;--silver:#7d8791;--bronze:#9a5f35;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#101512;--surface:#171e1a;--ink:#e6ece8;--muted:#98a69e;--line:#2a332e;
+  --accent:#6cc39c;--accent-soft:#1d2d25;--plus:#6cc39c;--minus:#f0877a;
+  --r1:#4fae86;--r2:#3a6f58;--r3:#8a7d5c;--r4:#b25a4e;
+  --gold:#e0b84a;--stalk:#4f7a3c;--node:#3a5c2c;--leaf:#3f7a3a;--silver:#aab3bb;--bronze:#cf8c5a;}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#101512;--surface:#171e1a;--ink:#e6ece8;--muted:#98a69e;--line:#2a332e;
+  --accent:#6cc39c;--accent-soft:#1d2d25;--plus:#6cc39c;--minus:#f0877a;
+  --r1:#4fae86;--r2:#3a6f58;--r3:#8a7d5c;--r4:#b25a4e;
+  --gold:#e0b84a;--stalk:#4f7a3c;--node:#3a5c2c;--leaf:#3f7a3a;--silver:#aab3bb;--bronze:#cf8c5a;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.6;padding-inline:16px;padding-block:32px 48px}
+.wrap{max-width:880px;margin:0 auto;display:grid;gap:24px}
+header{display:grid;gap:6px}
+.brand{display:flex;gap:14px;align-items:flex-start;justify-content:space-between}
+.htext{display:grid;gap:6px;min-width:0}
+.panda{flex:none;order:2;width:96px;height:96px;margin-top:-6px;border-radius:50%;filter:drop-shadow(0 3px 5px rgba(0,0,0,.18))}
+.bamboo{position:fixed;left:0;bottom:0;width:min(220px,34vw);height:auto;z-index:0;pointer-events:none;opacity:.9}
+.wrap{position:relative;z-index:1}
+@media (max-width:600px){.panda{width:64px;height:64px}.bamboo{opacity:.5}}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.12em;color:var(--accent)}
+h1{font-size:clamp(26px,5vw,36px);font-weight:900;line-height:1.25;margin:0;text-wrap:balance}
+.meta{color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:4px 18px}
+.meta b{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--ink)}
+.tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.search{flex:1 1 220px;max-width:320px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
+.search:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;min-width:760px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 7px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+tbody tr:last-child td{border-bottom:0}
+th{font-size:12px;font-weight:500;color:var(--muted);letter-spacing:.04em;position:sticky;top:0;background:var(--surface)}
+th button{all:unset;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+th button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+th button[aria-sort] ::after{content:""}
+th .arrow{font-size:10px;opacity:.35}
+th button.on{color:var(--ink)} th button.on .arrow{opacity:1;color:var(--accent)}
+th.l,td.l{text-align:left}
+td.rank{font-family:"IBM Plex Mono",monospace;font-weight:600;width:3em;text-align:center}
+.medal{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;color:#fff;font-size:13px}
+.m1{background:var(--gold)}.m2{background:var(--silver)}.m3{background:var(--bronze)}
+td.name{font-weight:700;max-width:12em;overflow:hidden;text-overflow:ellipsis}
+td.pt{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:16px}
+.plus{color:var(--plus)}.minus{color:var(--minus)}
+td.num{font-family:"IBM Plex Mono",monospace;font-size:14px}
+.bar{display:flex;width:96px;height:10px;border-radius:3px;overflow:hidden;background:var(--line);margin-left:auto}
+.bar span:nth-child(1){background:var(--r1)}.bar span:nth-child(2){background:var(--r2)}.bar span:nth-child(3){background:var(--r3)}.bar span:nth-child(4){background:var(--r4)}
+.counts{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);margin-top:3px}
+tbody tr:hover td{background:var(--accent-soft)}
+tr.top td{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+
+.pname{all:unset;cursor:pointer;font-weight:700;border-bottom:1px dashed var(--muted);max-width:12em;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+.pname:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.pname:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);padding:0;width:min(760px,calc(100vw - 32px));max-height:calc(100dvh - 48px)}
+dialog::backdrop{background:rgba(10,20,15,.45)}
+.dhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:20px 20px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1}
+.dhead h2{margin:0;font-size:22px;font-weight:900;line-height:1.3;word-break:break-all}
+.dsub{font-size:13px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:2px 14px}
+.dsub b{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--ink)}
+.close{all:unset;cursor:pointer;flex:none;width:36px;height:36px;display:grid;place-items:center;border-radius:8px;font-size:20px;color:var(--muted)}
+.close:hover{background:var(--accent-soft);color:var(--ink)}
+.close:focus-visible{outline:2px solid var(--accent)}
+.dbody{padding:12px 20px 20px}
+.dscope{display:inline-block;font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:2px 10px;margin-bottom:6px}
+.awards{display:grid;gap:8px;margin:4px 0 18px}
+.dbody h3{margin:0;font-size:15px;font-weight:700}
+.dbody h3 span{font-size:12px;font-weight:400;color:var(--muted);margin-left:6px}
+.vsh{margin-bottom:6px!important}
+.awc{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.awc div{border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;font-size:12px;color:var(--muted)}
+.awc b{display:block;font-family:"IBM Plex Mono",monospace;font-size:20px;color:var(--ink);line-height:1.3}
+.awc .on1{border-color:var(--gold)}.awc .on2{border-color:var(--silver)}.awc .on3{border-color:var(--bronze)}
+.awl{display:flex;flex-wrap:wrap;gap:6px;font-size:12px}
+.awl span{border-radius:999px;padding:2px 9px;background:var(--bg);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.awl .r1{border-color:var(--gold)}.awl .r2{border-color:var(--silver)}.awl .r3{border-color:var(--bronze)}
+.awl .prov{border-style:dashed;color:var(--muted)}
+.awnone{font-size:13px;color:var(--muted);margin:0}
+.dnote{font-size:12px;color:var(--muted);margin:0 0 10px}
+.vs{min-width:540px}
+.vs td,.vs th{padding:8px 10px}
+.vs th{position:static}
+.vs .oppbtn{all:unset;cursor:pointer;font-weight:700}
+.vs .oppbtn:hover{color:var(--accent)}
+.vs .oppbtn:focus-visible{outline:2px solid var(--accent);border-radius:3px}
+.orank{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);margin-left:6px;font-weight:400}
+.wbar{display:inline-block;width:56px;height:6px;border-radius:3px;background:color-mix(in srgb,var(--minus) 55%,transparent);overflow:hidden;vertical-align:middle;margin-right:8px}
+.wbar span{display:block;height:100%;background:var(--plus)}
+.dtbox{overflow-x:auto}
+.views{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:4px}
+.tab{all:unset;cursor:pointer;padding:10px 14px;font-weight:700;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px}
+.past{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding-bottom:8px}
+.past select{font:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.past select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+tr.banned td{background:color-mix(in srgb,var(--minus) 7%,transparent);color:var(--muted)}
+tr.banned .pname{color:var(--muted)}
+.banmark{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--surface);background:var(--minus);border-radius:4px;padding:1px 6px}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+footer{font-size:12px;color:var(--muted)}
+/* チーム戦ランキング用の追加 */
+.wrap{max-width:960px}
+#tP{min-width:860px}
+.tname{all:unset;cursor:pointer;font-size:13px;color:var(--muted);max-width:9em;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+.tname:hover{color:var(--accent)}
+.tname:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.tg .trow td{border-bottom:0;padding-bottom:3px}
+.tg .mem td{padding-top:0;padding-bottom:11px;border-bottom:1px solid var(--line);white-space:normal;text-align:left}
+.tg:last-child .mem td{border-bottom:0}
+.tg:hover td{background:var(--accent-soft)}
+.tg.top td{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+.tg .pname{max-width:16em}
+.mems{display:flex;flex-wrap:wrap;gap:6px}
+.chip{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;gap:7px;align-items:baseline;font-size:12px;line-height:1.5;padding:2px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink)}
+.chip b{font-family:"IBM Plex Mono",monospace;font-weight:500;font-variant-numeric:tabular-nums}
+button.chip:hover{border-color:var(--accent)}
+button.chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.chip.idle{cursor:default;color:var(--muted);border-style:dashed}
+.adj{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:400;color:var(--muted);margin-left:4px}
+.dsub button{all:unset;cursor:pointer;color:var(--ink);font-weight:700;border-bottom:1px dashed var(--muted)}
+.dsub button:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.dsub button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.oteam{font-size:11px;color:var(--muted);margin-left:6px;font-weight:400}
+.notice{margin:0;padding:10px 14px;border:1px dashed var(--line);border-radius:8px;background:var(--surface);font-size:13px;color:var(--muted)}
+h1 span{display:inline-block}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">
+  <img class="panda" src="data:image/webp;base64,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" alt="發を持つパンダ" width="96" height="96">
+  <div class="htext">
+  <div class="eyebrow">MONOQLO麻雀部</div>
+  <h1 id="ttl">チーム戦ランキング</h1>
+  <div class="meta" id="meta"><span>読み込み中…</span></div>
+  </div>
+  </div>
+</header>
+<div class="tools">
+  <input id="q" class="search" type="search" placeholder="チーム名・プレイヤー名で検索" aria-label="チーム名・プレイヤー名で検索">
+  <div class="legend"><span><i style="background:var(--r1)"></i>1位</span><span><i style="background:var(--r2)"></i>2位</span><span><i style="background:var(--r3)"></i>3位</span><span><i style="background:var(--r4)"></i>4位</span></div>
+</div>
+<div class="views">
+  <div class="tabs" role="tablist" aria-label="表示するランキング">
+    <button class="tab" role="tab" id="tabTeam" aria-selected="true">チーム順位</button>
+    <button class="tab" role="tab" id="tabPlayer" aria-selected="false">個人順位</button>
+  </div>
+  <label class="past" id="past" hidden>ほかの大会
+    <select id="month" aria-label="表示する大会を選ぶ"></select>
+  </label>
+</div>
+<p class="notice" id="notice" hidden></p>
+<div class="tablebox" id="boxT">
+<table id="tT">
+<thead><tr>
+ <th style="text-align:center">順位</th><th class="l">チーム</th>
+ <th><button data-v="team" data-k="pt" class="on">合計PT<span class="arrow">▼</span></button></th>
+ <th><button data-v="team" data-k="n">対局数<span class="arrow">▼</span></button></th>
+ <th><button data-v="team" data-k="avg">平均PT<span class="arrow">▼</span></button></th>
+ <th><button data-v="team" data-k="ar">平均順位<span class="arrow">▲</span></button></th>
+ <th><button data-v="team" data-k="top">トップ率<span class="arrow">▼</span></button></th>
+ <th><button data-v="team" data-k="ren">連対率<span class="arrow">▼</span></button></th>
+ <th><button data-v="team" data-k="avoid">ラス回避率<span class="arrow">▼</span></button></th>
+ <th>着順分布</th>
+</tr></thead>
+<tbody><tr><td colspan="10" class="empty">読み込み中…</td></tr></tbody>
+</table>
+</div>
+<div class="tablebox" id="boxP" hidden>
+<table id="tP">
+<thead><tr>
+ <th style="text-align:center">順位</th><th class="l">プレイヤー</th><th class="l">チーム</th>
+ <th><button data-v="player" data-k="pt" class="on">合計PT<span class="arrow">▼</span></button></th>
+ <th><button data-v="player" data-k="n">対局数<span class="arrow">▼</span></button></th>
+ <th><button data-v="player" data-k="avg">平均PT<span class="arrow">▼</span></button></th>
+ <th><button data-v="player" data-k="ar">平均順位<span class="arrow">▲</span></button></th>
+ <th><button data-v="player" data-k="top">トップ率<span class="arrow">▼</span></button></th>
+ <th><button data-v="player" data-k="ren">連対率<span class="arrow">▼</span></button></th>
+ <th><button data-v="player" data-k="avoid">ラス回避率<span class="arrow">▼</span></button></th>
+ <th>着順分布</th>
+</tr></thead>
+<tbody id="tbP"><tr><td colspan="11" class="empty">読み込み中…</td></tr></tbody>
+</table>
+</div>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績と相手チームごとの相性表が、プレイヤー名を押すと同卓した相手ごとの相性表が開く。</footer>
+
+</div>
+
+<dialog id="dlg" aria-labelledby="dname">
+  <div class="dhead"><div><div class="dscope" id="dscope"></div><h2 id="dname"></h2><div class="dsub" id="dsub"></div></div><button class="close" id="dclose" aria-label="閉じる">×</button></div>
+  <div class="dbody">
+    <section class="awards" id="secMem" aria-labelledby="memh">
+      <h3 id="memh">メンバー <span>個人成績</span></h3>
+      <div class="dtbox"><table class="vs"><thead><tr><th style="text-align:center">個人順位</th><th class="l">プレイヤー</th><th>合計PT</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>着順</th></tr></thead><tbody id="mtb"></tbody></table></div>
+    </section>
+    <h3 class="vsh" id="vsh">相性表</h3>
+    <p class="dnote" id="dnote"></p>
+    <div class="dtbox"><table class="vs"><thead><tr><th class="l" id="vopp">対戦相手</th><th>同卓数</th><th>獲得PT</th><th>平均PT</th><th class="l">先着率</th></tr></thead><tbody id="vtb"></tbody></table></div>
+  </div>
+</dialog>
+<svg class="bamboo" viewBox="-44 0 264 320" aria-hidden="true"><rect x="30" y="262" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="316" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="204" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="258" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="146" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="200" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="88" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="142" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="40" width="14" height="45" rx="5.4" fill="var(--stalk)"/><rect x="29" y="84" width="16" height="4" rx="2" fill="var(--node)"/><rect x="78" y="262" width="11" height="55" rx="4.2" fill="var(--stalk)"/><rect x="77" y="316" width="13" height="4" rx="2" fill="var(--node)"/><rect x="78" y="204" width="11" height="55" rx="4.2" fill="var(--stalk)"/><rect x="77" y="258" width="13" height="4" rx="2" fill="var(--node)"/><rect x="78" y="146" width="11" height="55" rx="4.2" fill="var(--stalk)"/><rect x="77" y="200" width="13" height="4" rx="2" fill="var(--node)"/><rect x="78" y="110" width="11" height="33" rx="4.2" fill="var(--stalk)"/><rect x="77" y="142" width="13" height="4" rx="2" fill="var(--node)"/><rect x="118" y="262" width="9" height="55" rx="3.5" fill="var(--stalk)"/><rect x="117" y="316" width="11" height="4" rx="2" fill="var(--node)"/><rect x="118" y="204" width="9" height="55" rx="3.5" fill="var(--stalk)"/><rect x="117" y="258" width="11" height="4" rx="2" fill="var(--node)"/><rect x="118" y="170" width="9" height="31" rx="3.5" fill="var(--stalk)"/><rect x="117" y="200" width="11" height="4" rx="2" fill="var(--node)"/><path d="M0 0 Q20.7 -9 46 0 Q20.7 9 0 0Z" transform="translate(44 70) rotate(-25)" fill="var(--leaf)"/><path d="M0 0 Q18.0 -9 40 0 Q18.0 9 0 0Z" transform="translate(44 72) rotate(-60)" fill="var(--leaf)"/><path d="M0 0 Q19.8 -9 44 0 Q19.8 9 0 0Z" transform="translate(30 100) rotate(200)" fill="var(--leaf)"/><path d="M0 0 Q17.1 -9 38 0 Q17.1 9 0 0Z" transform="translate(30 98) rotate(160)" fill="var(--leaf)"/><path d="M0 0 Q18.900000000000002 -9 42 0 Q18.900000000000002 9 0 0Z" transform="translate(89 140) rotate(-20)" fill="var(--leaf)"/><path d="M0 0 Q16.2 -9 36 0 Q16.2 9 0 0Z" transform="translate(89 142) rotate(-55)" fill="var(--leaf)"/><path d="M0 0 Q18.0 -9 40 0 Q18.0 9 0 0Z" transform="translate(78 175) rotate(195)" fill="var(--leaf)"/><path d="M0 0 Q17.1 -9 38 0 Q17.1 9 0 0Z" transform="translate(127 196) rotate(-15)" fill="var(--leaf)"/><path d="M0 0 Q14.4 -9 32 0 Q14.4 9 0 0Z" transform="translate(127 198) rotate(-50)" fill="var(--leaf)"/><path d="M0 0 Q15.3 -9 34 0 Q15.3 9 0 0Z" transform="translate(118 230) rotate(190)" fill="var(--leaf)"/><path d="M0 0 Q18.0 -8 40 0 Q18.0 8 0 0Z" transform="translate(44 160) rotate(-10)" fill="var(--leaf)"/><path d="M0 0 Q16.2 -7 36 0 Q16.2 7 0 0Z" transform="translate(30 200) rotate(185)" fill="var(--leaf)"/></svg>
+
+<script>
+const $=id=>document.getElementById(id);
+const f=(v,s)=>(v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const r1=v=>Math.round(v*10)/10;
+const sign=v=>v>=0?"plus":"minus";
+let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false;
+
+/* 集計。games=対局記録、roster=チーム表(プレイヤーID→{team,name,adj})。チーム表が無ければ roster=null */
+function compute(games,roster){
+  const ro=id=>roster&&roster.get(id)||null;
+  const P=new Map();
+  for(const [,seats] of games){
+    seats.forEach(([id,name,pt],i)=>{
+      let p=P.get(id); if(!p){p={id,name,pt:0,n:0,r:[0,0,0,0],vs:new Map()};P.set(id,p)}
+      p.pt+=pt;p.n++;p.r[i]++;
+      seats.forEach(([oid],j)=>{ if(j===i)return;
+        let h=p.vs.get(oid); if(!h){h=[0,0,0];p.vs.set(oid,h)}
+        h[0]++;h[1]+=pt;h[2]+=(i<j); });
+    });
+  }
+  for(const p of P.values()){const x=ro(p.id);p.team=x?x.team:"";p.adj=x?x.adj:0;p.pt+=p.adj}
+  const L=[...P.values()].sort((a,b)=>b.pt-a.pt);
+  const ix=new Map(L.map((p,i)=>[p.id,i]));
+
+  /* チーム */
+  const TM=new Map();
+  const tm=name=>{let t=TM.get(name);if(!t){t={name,pt:0,n:0,r:[0,0,0,0],mem:[],idle:[],vs:new Map()};TM.set(name,t)}return t};
+  if(roster) for(const [id,x] of roster){const t=tm(x.team); if(!P.has(id)){t.idle.push(x.name||id);t.pt+=x.adj}}
+  L.forEach((p,i)=>{ if(!p.team)return; const t=tm(p.team); t.mem.push(i);t.pt+=p.pt;t.n+=p.n;p.r.forEach((c,k)=>t.r[k]+=c) });
+  for(const [,seats] of games) seats.forEach(([id,,pt],i)=>{
+    const a=ro(id); if(!a)return;
+    seats.forEach(([oid],j)=>{ const b=ro(oid); if(j===i||!b||b.team===a.team)return;
+      const vs=TM.get(a.team).vs; let h=vs.get(b.team); if(!h){h=[0,0,0];vs.set(b.team,h)}
+      h[0]++;h[1]+=pt;h[2]+=(i<j); });
+  });
+  const TL=[...TM.values()].sort((a,b)=>b.pt-a.pt);
+  const tix=new Map(TL.map((t,i)=>[t.name,i]));
+  const stat=(pt,n,r)=>{const m=n||1;return{avg:pt/m,ar:n?(r[0]+2*r[1]+3*r[2]+4*r[3])/n:9,top:r[0]/m,ren:(r[0]+r[1])/m,avoid:n?1-r[3]/n:0}};
+  const players=L.map((p,i)=>({i,id:p.id,rank:i+1,name:p.name,team:p.team,ti:p.team?tix.get(p.team):-1,adj:p.adj,pt:r1(p.pt),n:p.n,r:p.r,
+    ...stat(p.pt,p.n,p.r),vs:[...p.vs].map(([o,h])=>[ix.get(o),h[0],r1(h[1]),h[2]])}));
+  const teams=TL.map((t,i)=>({i,rank:i+1,name:t.name,pt:r1(t.pt),n:t.n,r:t.r,mem:t.mem,idle:t.idle,
+    ...stat(t.pt,t.n,t.r),vs:[...t.vs].map(([o,h])=>[tix.get(o),h[0],r1(h[1]),h[2]])}));
+  return {players,teams};
+}
+/* 大会のキーは 開始年月+枝番(YYYYMMXX) */
+function ymLabel(k){return `${k.slice(0,4)}年${+k.slice(4,6)}月`}
+function evTitle(k){const S=SEASONS.get(k);return S&&S.roster&&S.roster.title||""}
+function evName(k){return evTitle(k)||`${ymLabel(k)} チーム戦`}
+function load(view,tab){
+  CUR=view; if(tab)TAB=tab;
+  const S=SEASONS.get(view), c=compute(S.games,S.roster);
+  D=c.players;T=c.teams;NOGAMES=!S.games.length;
+  const ds=S.games.map(g=>g[0].slice(0,10)).sort(), a=ds[0]||"", b=ds[ds.length-1]||"";
+  const free=D.filter(d=>d.ti<0).length, title=evTitle(view);
+  const people=NOGAMES&&S.roster?S.roster.size:D.length;
+  $("ttl").innerHTML=title?`<span>${esc(title)}</span> <span>ランキング</span>`:`<span>${ymLabel(view)}</span> <span>チーム戦ランキング</span>`;
+  $("meta").innerHTML=`<span>開催 <b>${ymLabel(view)}</b></span>`+
+    (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${S.games.length}</b></span>`+
+    (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
+    (S.roster&&free?`<span>うちチーム未登録 <b>${free}</b>人</span>`:"");
+  const note=!S.roster?`チーム表(${view}.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
+    :NOGAMES?`対局記録(${view}-games.csv)がまだない。チームとメンバーだけを表示している。`
+    :free?`チーム表に載っていないプレイヤーが${free}人いる。その人の成績は個人順位にだけ含め、チーム順位には含めていない。`:"";
+  $("notice").textContent=note;$("notice").hidden=!note;
+  $("month").value=view;
+  if(dlg.open)dlg.close();
+  show();
+}
+function show(){
+  $("tabTeam").setAttribute("aria-selected",TAB==="team");
+  $("tabPlayer").setAttribute("aria-selected",TAB==="player");
+  $("boxT").hidden=TAB!=="team";$("boxP").hidden=TAB!=="player";
+  const latest=CUR===MONTHS[0], h=(latest?"":CUR)+(TAB==="player"?(latest?"player":"-player"):"");
+  try{history.replaceState(null,"",h?"#"+h:location.pathname+location.search)}catch(e){}
+  render();
+}
+const bar=d=>`<div class="bar">${d.r.map(c=>`<span style="width:${d.n?c/d.n*100:0}%"></span>`).join("")}</div><div class="counts">${d.r.join(" / ")}</div>`;
+const rankCell=d=>NOGAMES?"—":d.rank<=3?`<span class="medal m${d.rank}">${d.rank}</span>`:d.rank;   // 対局前は順位を付けない
+const stats=d=>`<td class="pt ${sign(d.pt)}">${f(d.pt,1)}</td>
+<td class="num">${d.n}</td>
+<td class="num ${sign(d.avg)}">${d.n?f(d.avg,2):"—"}</td>
+<td class="num">${d.n?d.ar.toFixed(2):"—"}</td>
+<td class="num">${d.n?(d.top*100).toFixed(1)+"%":"—"}</td>
+<td class="num">${d.n?(d.ren*100).toFixed(1)+"%":"—"}</td>
+<td class="num">${d.n?(d.avoid*100).toFixed(1)+"%":"—"}</td>
+<td>${bar(d)}</td>`;
+const adjMark=p=>p.adj?`<span class="adj" title="点数修正 ${f(p.adj,1)} を含む">修正${f(p.adj,1)}</span>`:"";
+const by=k=>(a,b)=>k==="ar"?a.ar-b.ar:b[k]-a[k];
+function render(){
+  const q=$("q").value.trim().toLowerCase(), hit=s=>s.toLowerCase().includes(q);
+  if(TAB==="team"){
+    const tb=$("tT"); tb.querySelectorAll("tbody").forEach(x=>x.remove());
+    const L=T.filter(t=>!q||hit(t.name)||t.mem.some(i=>hit(D[i].name))||t.idle.some(hit)).sort(by(KEY.team));
+    tb.insertAdjacentHTML("beforeend",L.length?L.map(t=>`<tbody class="tg${!NOGAMES&&t.rank<=3?" top":""}">
+<tr class="trow"><td class="rank">${rankCell(t)}</td>
+<td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーと相性表を見る">${esc(t.name)}</button></td>
+${stats(t)}</tr>
+<tr class="mem"><td></td><td colspan="9"><div class="mems">${t.mem.map(i=>{const p=D[i];return `<button class="chip" data-p="${i}" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></button>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
+</tbody>`).join(""):`<tbody><tr><td colspan="10" class="empty">${SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
+  }else{
+    const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
+    $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
+<td class="rank">${rankCell(d)}</td>
+<td class="l name"><button class="pname" data-p="${d.i}" title="${esc(d.name)} の相性表を見る">${esc(d.name)}</button>${adjMark(d)}</td>
+<td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:'<span class="oteam" style="margin:0">未登録</span>'}</td>
+${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"対局がまだない":"該当するプレイヤーがいない")+'</td></tr>';
+  }
+}
+document.querySelectorAll("th button").forEach(b=>b.addEventListener("click",()=>{
+  KEY[b.dataset.v]=b.dataset.k;
+  document.querySelectorAll(`th button[data-v="${b.dataset.v}"]`).forEach(x=>x.classList.toggle("on",x===b));render()}));
+$("q").addEventListener("input",render);
+
+/* 成績ダイアログ(プレイヤー / チーム) */
+const dlg=$("dlg");
+const vsRow=(label,g,pt,w)=>{const wr=w/g*100;return `<tr><td class="l">${label}</td>
+<td class="num">${g}</td>
+<td class="pt ${sign(pt)}">${f(pt,1)}</td>
+<td class="num ${sign(pt)}">${f(pt/g,2)}</td>
+<td class="l num"><span class="wbar"><span style="width:${wr}%"></span></span>${wr.toFixed(0)}%<span class="orank">${w}-${g-w}</span></td></tr>`};
+function openDlg(){ if(!dlg.open)dlg.showModal(); $("dclose").focus({preventScroll:true}); dlg.scrollTop=0 }
+function openPlayer(i){
+  const p=D[i];
+  $("dscope").textContent=`${evName(CUR)} 個人成績`;
+  $("dname").textContent=p.name;
+  $("dsub").innerHTML=`<span>個人 <b>${p.rank}位</b></span>`+
+    (p.ti>=0?`<span>チーム <button data-t="${p.ti}">${esc(p.team)}</button> <b>${T[p.ti].rank}位</b></span>`:"")+
+    `<span>合計PT <b class="${sign(p.pt)}">${f(p.pt,1)}</b>${p.adj?`(点数修正 <b>${f(p.adj,1)}</b> を含む)`:""}</span><span>対局数 <b>${p.n}</b></span><span>対戦相手 <b>${p.vs.length}</b>人</span>`;
+  $("secMem").hidden=true;
+  $("vsh").textContent="相性表";$("vopp").textContent="対戦相手";
+  $("dnote").textContent="同卓した対局だけで集計した、このプレイヤーの成績。獲得PTの高い順(相性の良い順)。先着率は相手より上の順位で終えた割合。";
+  $("vtb").innerHTML=[...p.vs].sort((a,b)=>b[2]-a[2]||b[1]-a[1]).map(([o,g,pt,w])=>{const q=D[o];
+    return vsRow(`<button class="oppbtn" data-p="${o}">${esc(q.name)}</button><span class="orank">${q.rank}位</span>${q.team?`<span class="oteam">${esc(q.team)}</span>`:""}`,g,pt,w)}).join("");
+  openDlg();
+}
+function openTeam(i){
+  const t=T[i];
+  $("dscope").textContent=`${evName(CUR)} チーム成績`;
+  $("dname").textContent=t.name;
+  $("dsub").innerHTML=`<span>チーム <b>${NOGAMES?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`;
+  $("secMem").hidden=false;
+  $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
+<td class="l"><button class="oppbtn" data-p="${k}">${esc(p.name)}</button>${adjMark(p)}</td>
+<td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
+<td class="num ${sign(p.avg)}">${f(p.avg,2)}</td><td class="num">${p.ar.toFixed(2)}</td>
+<td class="num">${p.r.join(" / ")}</td></tr>`}).join("")+
+    t.idle.map(n=>`<tr><td class="rank">—</td><td class="l">${esc(n)}</td><td class="num" colspan="5" style="text-align:left;color:var(--muted)">未対局</td></tr>`).join("");
+  $("vsh").textContent="相性表(対チーム)";$("vopp").textContent="相手チーム";
+  $("dnote").textContent="相手チームのメンバーと同卓した対局で、このチームのメンバーが得たPT。獲得PTの高い順(相性の良い順)。先着率は相手より上の順位で終えた割合。";
+  $("vtb").innerHTML=[...t.vs].sort((a,b)=>b[2]-a[2]||b[1]-a[1]).map(([o,g,pt,w])=>
+    vsRow(`<button class="oppbtn" data-t="${o}">${esc(T[o].name)}</button><span class="orank">${T[o].rank}位</span>`,g,pt,w)).join("")
+    ||'<tr><td colspan="5" class="empty">対局がまだない</td></tr>';
+  openDlg();
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-p],[data-t]"); if(!b||b.closest("th"))return;
+  if(b.dataset.p!=null)openPlayer(+b.dataset.p); else openTeam(+b.dataset.t);
+});
+$("dclose").addEventListener("click",()=>dlg.close());
+dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
+
+/* CSV 読み込み */
+function parseCSV(text){
+  const rows=[];let row=[],cell="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++} else q=false } else cell+=c; }
+    else if(c==='"') q=true;
+    else if(c===','){row.push(cell);cell=""}
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++; row.push(cell);rows.push(row);row=[];cell="" }
+    else cell+=c;
+  }
+  if(cell!==""||row.length){row.push(cell);rows.push(row)}
+  return rows.filter(r=>r.some(v=>v.trim()!==""));
+}
+/* 対局記録(牌譜履歴)のCSV */
+function toGames(text){
+  const rows=parseCSV(text.replace(/^﻿/,""));
+  if(rows.length<2) throw new Error("CSVにデータ行がない。");
+  const h=rows[0].map(s=>s.trim()); const col=n=>h.indexOf(n);
+  const need=["開始時間"];for(let i=1;i<=4;i++)need.push(`${i}位プレイヤー名`,`${i}位最終点数`);
+  const miss=need.filter(n=>col(n)<0);
+  if(miss.length) throw new Error(`必要な列が見つからない: ${miss.join("、")}`);
+  const hid=col("非表示状態"),games=[];
+  rows.slice(1).forEach((r,k)=>{
+    if(hid>=0&&(r[hid]||"").trim().toLowerCase()==="yes")return;
+    const seats=[];
+    for(let i=1;i<=4;i++){
+      const raw=(r[col(`${i}位プレイヤー名`)]||"").trim(), pt=parseFloat(r[col(`${i}位最終点数`)]);
+      const m=raw.match(/^\[[^\]]*\]\[(\d+)\](.*)$/);
+      if(!raw||isNaN(pt)) throw new Error(`${k+2}行目の${i}位のデータが読めない。`);
+      seats.push(m?[m[1],m[2],pt]:[raw,raw,pt]);
+    }
+    games.push([(r[col("開始時間")]||"").trim(),seats]);
+  });
+  if(!games.length) throw new Error("集計できる対局がない。");
+  return games;
+}
+/* チーム表のCSV(チーム表作成ページの出力)。使うのは「大会名」「チーム名」「プレイヤー名」「プレイヤーID」の列。
+   「点数修正」の列があれば、その分を合計PTに足す */
+function toRoster(text){
+  const rows=parseCSV(text.replace(/^﻿/,""));
+  if(rows.length<2) throw new Error("チーム表にデータ行がない。");
+  const h=rows[0].map(s=>s.trim()),ci=h.indexOf("プレイヤーID"),ct=h.indexOf("チーム名"),cn=h.indexOf("プレイヤー名"),ca=h.indexOf("点数修正"),ce=h.indexOf("大会名");
+  if(ci<0||ct<0) throw new Error("チーム表に「プレイヤーID」「チーム名」の列がない。");
+  const R=new Map();
+  rows.slice(1).forEach(r=>{
+    const id=(r[ci]||"").trim(),team=(r[ct]||"").trim(); if(!id||!team)return;
+    R.set(id,{team,name:cn>=0?(r[cn]||"").trim():"",adj:ca>=0?parseFloat(r[ca])||0:0});
+  });
+  if(!R.size) throw new Error("チーム表にチーム名の入った行がない。");
+  R.title=ce>=0?((rows.slice(1).find(r=>(r[ce]||"").trim())||[])[ce]||"").trim():"";
+  return R;
+}
+function decode(buf){
+  try{return new TextDecoder("utf-8",{fatal:true}).decode(buf)}catch(e){return new TextDecoder("shift_jis").decode(buf)}
+}
+function fail(msg){$("tT").querySelectorAll("tbody").forEach(x=>x.remove());$("tT").insertAdjacentHTML("beforeend",`<tbody><tr><td colspan="10" class="empty">${esc(msg)}</td></tr></tbody>`);$("meta").innerHTML=""}
+
+/* データの置き場所。
+   データ用リポジトリ(DATA_REPO)に、1大会につき2つのCSVを置く。YYYYMMXX は 開始年4桁+開始月2桁+枝番2桁。
+     YYYYMMXX.csv        … チーム表(チーム表作成ページ event-create の出力)
+     YYYYMMXX-games.csv  … 対局記録(雀魂の「牌譜履歴」)
+   リポジトリ名を変えたら、ここも変える。フォルダに入れるなら DATA_DIR を "フォルダ名/" にする。 */
+const DATA_REPO="event-data";
+const DATA_DIR="";
+const REPO_OWNER=location.hostname.endsWith(".github.io")?location.hostname.split(".")[0]:"";
+const DATA_BASE=REPO_OWNER?`${location.origin}/${DATA_REPO}/${DATA_DIR}`:"";  // GitHub Pages以外(手元での確認)では、ページと同じ場所から読む
+/* データ用リポジトリのファイルを取る。GitHub Pagesで見つからなければ、GitHubの生ファイル(raw)から取る */
+async function fetchData(name){
+  const q=`?t=${Date.now()}`;
+  let r=await fetch(DATA_BASE+name+(REPO_OWNER?q:""),{cache:"no-store"}).catch(()=>null);
+  if((!r||!r.ok)&&REPO_OWNER) r=await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${DATA_REPO}/HEAD/${DATA_DIR}${name}${q}`,{cache:"no-store"}).catch(()=>null);
+  return r||{ok:false,status:0};
+}
+const p2=v=>String(v).padStart(2,"0");
+const isKey=s=>/^\d{4}(0[1-9]|1[0-2])(0[1-9]|[1-9]\d)$/.test(s);
+/* 大会のファイルを探す
+   1. GitHubのAPIでファイル一覧を取り、YYYYMMXX.csv と YYYYMMXX-games.csv をすべて拾う
+   2. APIが使えないとき(回数制限・手元での確認など)は、来月から過去へ順に、枝番01から確かめる */
+async function listByApi(){
+  if(!REPO_OWNER) return null;
+  try{
+    const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${DATA_REPO}/contents/${DATA_DIR.replace(/\/$/,"")}?t=${Date.now()}`);
+    if(!r.ok) return null;
+    const keys=(await r.json()).map(f=>(f.name.match(/^(\d{8})(-games)?\.csv$/)||[])[1]).filter(k=>k&&isKey(k));
+    return [...new Set(keys)];
+  }catch(e){return null}
+}
+function prevYM(ym){let y=+ym.slice(0,4),m=+ym.slice(4)-1;if(m<1){m=12;y--}return `${y}${p2(m)}`}
+/* その月の大会を、枝番01から順に、見つからなくなるまで読む */
+async function loadMonth(ym){
+  const out=[];
+  for(let x=1;x<=99;x++){const k=ym+p2(x),s=await loadSeason(k); if(!s)break; out.push([k,s])}
+  return out;
+}
+async function probeBackward(){
+  // 来月分から過去へ6か月ずつ確かめる。見つかった後に12か月続けて無ければ打ち切る(何も無ければ3年で打ち切る)
+  const now=new Date(); let y=now.getFullYear(),m=now.getMonth()+2; if(m>12){m=1;y++}
+  let ym=`${y}${p2(m)}`;
+  const found=[];let miss=0,steps=0;
+  while(steps<240){
+    const batch=[];for(let j=0;j<6;j++){batch.push(ym);ym=prevYM(ym)}
+    steps+=6;
+    for(const list of await Promise.all(batch.map(loadMonth))){ if(list.length){found.push(...list);miss=0} else miss++ }
+    if(found.length?miss>=12:steps>=36) break;
+  }
+  return found;
+}
+const BAD=[];
+/* 1大会分を読む。チーム表だけある(対局前)・対局記録だけある、のどちらでも表示する */
+async function loadSeason(key){
+  const [t,g]=await Promise.all([fetchData(`${key}.csv`),fetchData(`${key}-games.csv`)]);
+  if(!t.ok&&!g.ok) return null;
+  let games=[],roster=null;
+  if(g.ok) try{games=toGames(decode(await g.arrayBuffer()))}
+  catch(err){console.warn(key,err);BAD.push(`${key}-games.csv(${err.message})`)}
+  if(t.ok) try{roster=toRoster(decode(await t.arrayBuffer()))}
+  catch(err){console.warn(key,err);BAD.push(`${key}.csv(${err.message})`)}
+  return games.length||roster?{games,roster}:null;
+}
+(async()=>{
+  const listed=await listByApi();
+  const res=listed&&listed.length
+    ? await Promise.all(listed.map(async k=>[k,await loadSeason(k)]))
+    : await probeBackward();
+  for(const [ym,s] of res) if(s) SEASONS.set(ym,s);
+  MONTHS=[...SEASONS.keys()].sort().reverse();
+  if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001.csv、対局記録を 20261001-games.csv のような名前で置いてほしい。`);return}
+  $("month").innerHTML=MONTHS.map(k=>`<option value="${k}">${esc(evTitle(k)?`${evTitle(k)}(${ymLabel(k)})`:`${ymLabel(k)} 枝番${k.slice(6)}`)}</option>`).join("");
+  $("past").hidden=MONTHS.length<2;
+  const m=location.hash.slice(1).match(/^(\d{8})?-?(player)?$/)||[];
+  const view=SEASONS.has(m[1])?m[1]:MONTHS[0];
+  load(view,m[2]||!SEASONS.get(view).roster?"player":"team");
+  if(BAD.length) console.warn("読めなかったCSV:",BAD);
+})();
+$("tabTeam").addEventListener("click",()=>{if(CUR){TAB="team";show()}});
+$("tabPlayer").addEventListener("click",()=>{if(CUR){TAB="player";show()}});
+$("month").addEventListener("change",e=>e.target.value&&load(e.target.value));
+</script>
+
+</body>
+</html>
