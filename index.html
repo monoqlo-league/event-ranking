@@ -420,7 +420,7 @@ function render(){
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
 <tr class="mem"><td></td><td colspan="9"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
-</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING&&S.files.some(g=>g.length)?esc(S.leagues[lastLeague(S)].name)+"実施中":PENDING||NOGAMES&&!q?"🀄対局準備中🀄":S.roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
+</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING&&S.files.some(g=>g.length)?"🀄"+esc(S.leagues[lastLeague(S)].name)+"実施中🀄":PENDING||NOGAMES&&!q?"🀄対局準備中🀄":S.roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
