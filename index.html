@@ -219,7 +219,7 @@ tbody.prep tr:hover td{background:transparent}
 .srounds{display:grid;gap:20px;min-width:0}
 .rdblock{display:grid;gap:8px;min-width:0}
 .rdh{margin:0;font-size:14px;font-weight:700}
-.tbs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(232px,1fr);gap:10px;overflow-x:auto;min-width:0;padding-bottom:2px}
+.tbs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(276px,1fr);gap:10px;overflow-x:auto;min-width:0;padding-bottom:2px}
 .tcard{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface);min-width:0}
 .tch{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border-bottom:1px solid var(--line)}
 .tch b{font-family:"IBM Plex Mono","Zen Kaku Gothic New",monospace;font-weight:600;color:var(--accent)}
@@ -228,7 +228,7 @@ tbody.prep tr:hover td{background:transparent}
 .tct{min-width:0;table-layout:fixed;font-size:14px}
 .tct th{position:static;font-size:11px;padding:5px 6px;text-align:center;letter-spacing:0}
 .tct th.l{text-align:left}
-.tct th:nth-child(1){width:44px}.tct th:nth-child(3){width:72px}
+.tct th:nth-child(1){width:44px}.tct th:nth-child(3){width:64px}.tct th:nth-child(4){width:70px}
 .tct td{padding:7px 6px;text-align:center;vertical-align:middle}
 .tct td.seat{font-weight:700;color:var(--muted)}
 .tct td.tm{text-align:left;font-weight:700;overflow:hidden;text-overflow:ellipsis}
@@ -237,10 +237,11 @@ tbody.prep tr:hover td{background:transparent}
 .tct td.tm.tbd{color:var(--muted);font-weight:400}
 .tct td.rk{font-family:"IBM Plex Mono",monospace;font-weight:600}
 .tct td.gp{font-family:"IBM Plex Mono",monospace;font-weight:600;text-align:right;padding-right:10px}
-.tct th:nth-child(3){text-align:right;padding-right:10px}
+.tct td.sc{font-family:"IBM Plex Mono",monospace;font-size:13px;text-align:right;color:var(--muted)}
+.tct th:nth-child(3){text-align:right}.tct th:nth-child(4){text-align:right;padding-right:10px}
 .tct td.gp.plus{color:var(--plus)}.tct td.gp.minus{color:var(--minus)}
 .tct tr.on td,.tct tbody tr.on:hover td{background:var(--accent);color:var(--surface)}
-.tct tr.on td small,.tct tr.on td.seat,.tct tr.on td.rk,.tct tr.on td.gp{color:var(--surface)}
+.tct tr.on td small,.tct tr.on td.seat,.tct tr.on td.rk,.tct tr.on td.sc,.tct tr.on td.gp{color:var(--surface)}
 .rrest{margin:0;font-size:13px;color:var(--muted)}
 .rrest b{font-weight:700;margin-right:10px}
 .rrest.on{color:var(--ink)}
@@ -333,7 +334,7 @@ tbody.prep tr:hover td{background:transparent}
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 
 </div>
 
@@ -394,16 +395,32 @@ function compute(games,roster,opt){
 function leagueOf(S,k){
   if(S.L[k])return S.L[k];
   const lg=S.leagues[k],games=S.files[k]||[];
-  let teams=null,pending=false;const carry=new Map(),seed=new Map();
+  let teams=null,pending=false,prov=false;const carry=new Map(),seed=new Map();
   if(k&&S.roster){
-    // 前のリーグがまだ始まっていなければ、このリーグに進むチームは決まらない
-    pending=!games.length&&!S.files[k-1].length;
+    /* このリーグに進むチームが決まるのは、前のリーグが終わったとき(finished)。
+       スケジュールがなくて終わったか判断できない大会は、前のリーグが始まっていれば、今の上位を仮に出す(prov)。
+       このリーグの対局記録がすでにあるときは、前のリーグの順位で進んだものとして集計する */
+    const fin=finished(S,k-1);
+    pending=!games.length&&(fin===null?!S.files[k-1].length:!fin);
+    prov=!games.length&&!pending&&fin===null;
     const up=pending?[]:leagueOf(S,k-1).teams.slice(0,lg.teams);
     teams=new Set(up.map(t=>t.name));
     up.forEach((t,i)=>{carry.set(t.name,carryOver(t.raw,lg.carry));seed.set(t.name,i)});
   }
   const c=compute(games,S.roster,{teams,carry,seed,adj:k===0});
-  return S.L[k]={games,players:c.players,teams:c.teams,pending};
+  return S.L[k]={games,players:c.players,teams:c.teams,pending,prov};
+}
+/* リーグ k が終わったか。スケジュールにある対局の数に、対局記録の数が届いたら、終わったとする。
+   スケジュールがないリーグは判断できないので null を返す */
+function finished(S,k){
+  const L=schedOf(S,k),n=L?plannedGames(L):0;
+  return n?S.files[k].length>=n:null;
+}
+/* 進むチームがまだ決まっていないリーグに出す文言。終わっていない最初のリーグが対局中なら「○○実施中」 */
+function waitWord(S,k){
+  if(finished(S,0)===null) return S.files.some(g=>g.length)?`🀄${S.leagues[lastLeague(S)].name}実施中🀄`:"🀄対局準備中🀄";
+  let c=0;while(c<k-1&&finished(S,c))c++;
+  return S.files[c].length?`🀄${S.leagues[c].name}実施中🀄`:"🀄対局準備中🀄";
 }
 /* 持ち越すPT。割合を掛けて小数第2位が出たら切り上げる(+100.1 の半分は +50.1、−100.1 の半分は −50.0) */
 const carryOver=(pt,pct)=>Math.ceil(Math.round(pt*10)*pct/100-1e-9)/10;
@@ -431,7 +448,7 @@ function load(view,tab,lg){
     (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
   const note=!S.roster?`チーム表(${view}.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
     :PENDING?`${S.leagues[LG-1].name}がまだ終了していないため、${lgi.name}に進むチームは決まっていない。`
-    :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の今の上位${T.length}チームを、進出するチームとして表示している。`
+    :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の${X.prov?"今の":""}上位${T.length}チームを、進出するチームとして表示している。`
     :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
     :free?`チーム順位に含めていないプレイヤーが${free}人いる(チーム表に載っていない${LG?"、またはこのリーグに進んでいないチームの所属":""})。その人の成績は個人順位にだけ含めている。`:"";
   $("notice").textContent=note;$("notice").hidden=!note;
@@ -480,7 +497,7 @@ function render(){
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
 <tr class="mem"><td></td><td colspan="9"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
-</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING&&S.files.some(g=>g.length)?"🀄"+esc(S.leagues[lastLeague(S)].name)+"実施中🀄":PENDING||NOGAMES&&!q?"🀄対局準備中🀄":S.roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
+</tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="10" class="empty">${PENDING?esc(waitWord(S,LG)):NOGAMES&&!q?"🀄対局準備中🀄":S.roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
@@ -638,15 +655,9 @@ function schedOf(S,k){
   return S.sched.get(S.leagues[k].name)||(S.sched.has(S.leagues[k].name)?null:[...S.sched.values()][k])||null;
 }
 const plannedGames=L=>L.rounds.reduce((x,r)=>x+r.tables.length,0);
-/* リーグ k が終わったか。次のリーグの対局記録があるか、スケジュールにある対局の数だけ対局記録があれば、終わったとみなす */
-function finished(S,k){
-  if(S.files[k+1]&&S.files[k+1].length)return true;
-  const L=schedOf(S,k);
-  return !!L&&S.files[k].length>0&&S.files[k].length>=plannedGames(L);
-}
-/* 順位の枠(「予選1位」など)→ 実際のチーム名。前のリーグが終わっていなければ null */
+/* 順位の枠(「予選1位」など)→ 実際のチーム名。進むチームが決まっていなければ null */
 function slotNames(S,k){
-  if(!k||!S.roster||!finished(S,k-1))return null;
+  if(!k||!S.roster||leagueOf(S,k).pending||leagueOf(S,k).prov)return null;
   const prev=S.leagues[k-1].name;
   return new Map(leagueOf(S,k-1).teams.slice(0,S.leagues[k].teams).map((t,i)=>[`${prev}${i+1}位`,t.name]));
 }
@@ -656,7 +667,7 @@ function resultRounds(S,games,per){
   const tm=id=>{const x=S.roster&&S.roster.get(id);return x?x.team:""};
   const out=[];let cur=null;
   for(const g of [...games].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0)){
-    const date=g[0].slice(0,10).replace(/\//g,"-"),rows=g[1].map(([id,name,pt],i)=>({seat:"",slot:"",team:tm(id),player:name,rank:i+1,pt}));
+    const date=g[0].slice(0,10).replace(/\//g,"-"),rows=g[1].map(([id,name,pt,score],i)=>({seat:"",slot:"",team:tm(id),player:name,rank:i+1,pt,score}));
     const keys=rows.map(x=>x.team||"\u0000"+x.player);
     if(!cur||cur.date!==date||cur.games.length>=per||keys.some(k=>cur.seen.has(k))){cur={date,games:[],seen:new Set()};out.push(cur)}
     cur.games.push(rows);keys.forEach(k=>cur.seen.add(k));
@@ -667,7 +678,7 @@ function resultRounds(S,games,per){
    対局記録のある回戦は、対局記録の組み合わせ・日付・着順を使う(スケジュールと違っていれば、対局記録を優先する)。
    対局記録の i 番目の回戦が、スケジュールの i 番目の回戦にあたる。
    席は対局記録に入っていないので、対局後の卓には席を出さない(順位を出す)。
-   返す形: [{no,date,tables:[{tb,done,rows:[{seat,team,slot,player,rank,pt}]}],rest:[チーム名]}] */
+   返す形: [{no,date,tables:[{tb,done,rows:[{seat,team,slot,player,rank,pt,score}]}],rest:[チーム名]}] */
 function schedRounds(S,k){
   const L=schedOf(S,k),X=leagueOf(S,k),map=slotNames(S,k),SEAT="東南西北",LET="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const nm=x=>map&&map.get(x)||x,slot=x=>map&&map.has(x)?x:"";
@@ -714,7 +725,7 @@ function renderSched(){
   if(L&&L.wdays)info.push(`開催曜日 ${L.wdays}`);
   if(L&&L.perDay)info.push(`1日${L.perDay}試合`);
   $("sinfo").textContent=info.join("・")+"。"+(days.length>1?"上のタブで開催日を選ぶ。":"")+"対局前は席(東南西北)の順、対局後は着順で並べる。チーム名を押すと、そのチームを強調する。"+
-    (L&&LG&&S.roster?(map?`「${S.leagues[LG-1].name}1位」などの枠には、${S.leagues[LG-1].name}の順位で決まったチームを入れている。`:`${S.leagues[LG-1].name}が終わるまでは、「${S.leagues[LG-1].name}1位」のような順位の枠で表示する。`):"");
+    (L&&LG&&S.roster&&!map?`${S.leagues[LG-1].name}が終わるまでは、「${S.leagues[LG-1].name}1位」のような順位の枠で表示する。`:"");
   $("steams").innerHTML=names.map((n,i)=>`<button type="button" class="tchip" data-s="${i}" aria-pressed="${n===SPIN}">${esc(n)}</button>`).join("");
   /* 開催日のタブ。最初に選ぶのは、今日(開催日なら)、なければ今日より後で最初の開催日、それもなければ最終日 */
   const now=new Date(),today=`${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`,next=days.find(d=>d>=today)||"";
@@ -722,15 +733,17 @@ function renderSched(){
   $("dayrow").hidden=!days.length;
   $("days").innerHTML=days.map(d=>`<button class="tab" role="tab" aria-selected="${d===SDAY}" data-d="${d}">${dayLabel(d)}${d===next?`<span>${next===today?"本日":"次回"}</span>`:""}</button>`).join("");
   /* 卓を横に並べ、卓の中は縦に4チーム。対局前は東南西北の順で左の列は席、対局後は着順で左の列は順位 */
+  const pts=v=>(v<0?"−":"")+String(Math.abs(Math.round(v))).replace(/\B(?=(\d{3})+$)/g,",");
+  /* 対局前はチーム名だけ。対局後は打ったプレイヤーの名前を上に、チーム名を下に小さく出す */
   const line=(x,done)=>{
-    const sub=done?(x.team?x.player:"チーム表にない"):x.slot;
+    const main=done?(x.player||"—"):(x.team||"—"),sub=done?(x.team||"チーム表にない"):"";
     return `<tr class="${x.team&&x.team===SPIN?"on":""}">${done?`<td class="rk">${x.rank}</td>`:`<td class="seat">${x.seat||"—"}</td>`}
-<td class="l tm${!done&&LG&&!map?" tbd":""}"><span>${esc(x.team||x.player||"—")}</span>${sub?`<small>${esc(sub)}</small>`:""}</td>
-<td class="gp ${done?sign(x.pt):""}">${done?f(x.pt,1):"—"}</td></tr>`};
+<td class="l tm${!done&&LG&&!map?" tbd":""}"><span>${esc(main)}</span>${sub?`<small>${esc(sub)}</small>`:""}</td>
+<td class="sc">${done&&x.score!=null?pts(x.score):"—"}</td><td class="gp ${done?sign(x.pt):""}">${done?f(x.pt,1):"—"}</td></tr>`};
   const list=days.length?R.filter(rd=>rd.date===SDAY):R;      // 日付のないスケジュールは、全部の回戦を出す
   $("srounds").innerHTML=list.map(rd=>`<section class="rdblock" aria-label="第${rd.no}戦"><h3 class="rdh">第${rd.no}戦</h3>
 <div class="tbs">${rd.tables.map(t=>`<div class="tcard${t.done?" done":""}" data-tb="${esc(t.tb)}"><div class="tch"><b>${esc(t.tb)}卓</b><span>${t.done?"終了":"対局前"}</span></div>
-<table class="tct"><thead><tr><th>${t.done?"順位":"席"}</th><th class="l">チーム</th><th>獲得PT</th></tr></thead><tbody>${t.rows.map(x=>line(x,t.done)).join("")}</tbody></table></div>`).join("")}</div>
+<table class="tct"><thead><tr><th>${t.done?"順位":"席"}</th><th class="l">${t.done?"プレイヤー":"チーム"}</th><th>点棒</th><th>獲得PT</th></tr></thead><tbody>${t.rows.map(x=>line(x,t.done)).join("")}</tbody></table></div>`).join("")}</div>
 ${rd.rest.length?`<p class="rrest${rd.rest.includes(SPIN)?" on":""}"><b>抜け番</b>${rd.rest.map(esc).join("、")}</p>`:""}</section>`).join("");
 }
 $("steams").addEventListener("click",e=>{const b=e.target.closest(".tchip");if(!b)return;const n=b.textContent;SPIN=SPIN===n?null:n;renderSched()});
@@ -762,9 +775,10 @@ function toGames(text){
     const seats=[];
     for(let i=1;i<=4;i++){
       const raw=(r[col(`${i}位プレイヤー名`)]||"").trim(), pt=parseFloat(r[col(`${i}位最終点数`)]);
+      const sc=col(`${i}位PT`)>=0?parseFloat(r[col(`${i}位PT`)]):NaN;          // 終了時の点棒(素点)
       const m=raw.match(/^\[[^\]]*\]\[(\d+)\](.*)$/);
       if(!raw||isNaN(pt)) throw new Error(`${k+2}行目の${i}位のデータが読めない。`);
-      seats.push(m?[m[1],m[2],pt]:[raw,raw,pt]);
+      seats.push([m?m[1]:raw,m?m[2]:raw,pt,isNaN(sc)?null:sc]);
     }
     const lk=col("牌譜リンク");
     games.push([(r[col("開始時間")]||"").trim(),seats,lk>=0?(r[lk]||"").trim():""]);
