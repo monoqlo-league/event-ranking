@@ -144,6 +144,50 @@ button.chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .oteam{font-size:11px;color:var(--muted);margin-left:6px;font-weight:400}
 .notice{margin:0;padding:10px 14px;border:1px dashed var(--line);border-radius:8px;background:var(--surface);font-size:13px;color:var(--muted)}
 h1 span{display:inline-block}
+
+/* 順位グラフ */
+:root{--ghost:#b4bfb8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ghost:#4b5851}}
+:root[data-theme="dark"]{--ghost:#4b5851}
+.chartbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:grid;gap:14px;min-width:0}
+.chead{display:grid;gap:4px}
+.chead h2{margin:0;font-size:16px;font-weight:700}
+.chint{margin:0;font-size:12px;color:var(--muted)}
+.cteams{display:flex;flex-wrap:wrap;gap:6px}
+.tchip{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline;font-size:12px;line-height:1.5;padding:3px 11px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--ink)}
+.tchip b{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--muted)}
+.tchip:hover{border-color:var(--accent)}
+.tchip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:700}
+.tchip[aria-pressed="true"] b{color:var(--surface)}
+.tchip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cscroll{overflow-x:auto;min-width:0}
+.cplot{position:relative}
+#csvg{display:block;cursor:pointer;touch-action:pan-y pan-x}
+#csvg:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.cgrid{stroke:var(--line);stroke-width:1}
+.ccross{stroke:var(--muted);stroke-width:1}
+.cax{font-family:"IBM Plex Mono",monospace;font-size:11px;fill:var(--muted)}
+.cline{fill:none;stroke:var(--ghost);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.cline.on{stroke:var(--accent);stroke-width:3}
+.cdot{fill:var(--ghost);stroke:var(--surface);stroke-width:2}
+.cdot.on{fill:var(--accent)}
+.clab{font-size:12px;fill:var(--muted)}
+.clab.on{fill:var(--ink);font-weight:700}
+.ctip{position:absolute;top:0;z-index:2;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;box-shadow:0 6px 18px rgba(0,0,0,.14);font-size:12px;line-height:1.45}
+.ctip .ctd{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);margin-bottom:4px}
+.ctip table{min-width:0;width:auto;border-collapse:collapse}
+.ctip td{padding:1px 0;border:0;white-space:nowrap;text-align:left;color:var(--muted)}
+.ctip td.r{font-family:"IBM Plex Mono",monospace;text-align:right;padding-right:8px}
+.ctip td.p{font-family:"IBM Plex Mono",monospace;text-align:right;padding-left:12px}
+.ctip td.p.plus{color:var(--plus)}.ctip td.p.minus{color:var(--minus)}
+.ctip tr.on td.r,.ctip tr.on td.n{color:var(--ink);font-weight:700}
+.ctable summary{cursor:pointer;font-size:13px;color:var(--muted);width:fit-content}
+.ctable summary:hover{color:var(--ink)}
+.ctable summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.ctable .vs{margin-top:8px}
+.chartbox>.empty{margin:0}
+@media (max-width:480px){.chartbox{padding:16px}}
+@media (prefers-reduced-motion:no-preference){.cline,.cdot{transition:stroke .12s,fill .12s}}
 </style>
 </head>
 <body>
@@ -158,7 +202,7 @@ h1 span{display:inline-block}
   </div>
   </div>
 </header>
-<div class="tools">
+<div class="tools" id="tools">
   <input id="q" class="search" type="search" placeholder="チーム名・プレイヤー名で検索" aria-label="チーム名・プレイヤー名で検索">
   <div class="legend"><span><i style="background:var(--r1)"></i>1位</span><span><i style="background:var(--r2)"></i>2位</span><span><i style="background:var(--r3)"></i>3位</span><span><i style="background:var(--r4)"></i>4位</span></div>
 </div>
@@ -166,6 +210,7 @@ h1 span{display:inline-block}
   <div class="tabs" role="tablist" aria-label="表示するランキング">
     <button class="tab" role="tab" id="tabTeam" aria-selected="true">チーム順位</button>
     <button class="tab" role="tab" id="tabPlayer" aria-selected="false">個人順位</button>
+    <button class="tab" role="tab" id="tabChart" aria-selected="false">順位グラフ</button>
   </div>
   <label class="past" id="past" hidden>ほかの大会
     <select id="month" aria-label="表示する大会を選ぶ"></select>
@@ -204,7 +249,19 @@ h1 span{display:inline-block}
 <tbody id="tbP"><tr><td colspan="11" class="empty">読み込み中…</td></tr></tbody>
 </table>
 </div>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績と相手チームごとの相性表が、プレイヤー名を押すと同卓した相手ごとの相性表が開く。</footer>
+<section class="chartbox" id="boxC" hidden aria-labelledby="chh">
+  <div class="chead">
+    <h2 id="chh">チーム順位の推移</h2>
+    <p class="chint">開催日ごとに、その日までの合計PTで付けた順位。チーム名を押すと、そのチームの線を強調する。グラフに触れると、その日の全チームの順位とPTが出る。</p>
+  </div>
+  <p class="empty" id="cempty" hidden></p>
+  <div class="cteams" id="cteams" role="group" aria-label="強調するチーム"></div>
+  <div class="cscroll" id="cscroll"><div class="cplot" id="cplot"><svg id="csvg" role="img" tabindex="0"></svg><div class="ctip" id="ctip" hidden></div></div></div>
+  <details class="ctable" id="cdetails"><summary>表で見る</summary>
+    <div class="dtbox"><table class="vs" id="ctbl"></table></div>
+  </details>
+</section>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すとメンバーの成績が、プレイヤー名を押すと同卓した相手ごとの相性表が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。</footer>
 
 </div>
 
@@ -215,9 +272,11 @@ h1 span{display:inline-block}
       <h3 id="memh">メンバー <span>個人成績</span></h3>
       <div class="dtbox"><table class="vs"><thead><tr><th style="text-align:center">個人順位</th><th class="l">プレイヤー</th><th>合計PT</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>着順</th></tr></thead><tbody id="mtb"></tbody></table></div>
     </section>
+    <section id="secVs" aria-labelledby="vsh">
     <h3 class="vsh" id="vsh">相性表</h3>
-    <p class="dnote" id="dnote"></p>
-    <div class="dtbox"><table class="vs"><thead><tr><th class="l" id="vopp">対戦相手</th><th>同卓数</th><th>獲得PT</th><th>平均PT</th><th class="l">先着率</th></tr></thead><tbody id="vtb"></tbody></table></div>
+    <p class="dnote">同卓した対局だけで集計した、このプレイヤーの成績。獲得PTの高い順(相性の良い順)。先着率は相手より上の順位で終えた割合。</p>
+    <div class="dtbox"><table class="vs"><thead><tr><th class="l">対戦相手</th><th>同卓数</th><th>獲得PT</th><th>平均PT</th><th class="l">先着率</th></tr></thead><tbody id="vtb"></tbody></table></div>
+    </section>
   </div>
 </dialog>
 <svg class="bamboo" viewBox="-44 0 264 320" aria-hidden="true"><rect x="30" y="262" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="316" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="204" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="258" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="146" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="200" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="88" width="14" height="55" rx="5.4" fill="var(--stalk)"/><rect x="29" y="142" width="16" height="4" rx="2" fill="var(--node)"/><rect x="30" y="40" width="14" height="45" rx="5.4" fill="var(--stalk)"/><rect x="29" y="84" width="16" height="4" rx="2" fill="var(--node)"/><rect x="78" y="262" width="11" height="55" rx="4.2" fill="var(--stalk)"/><rect x="77" y="316" width="13" height="4" rx="2" fill="var(--node)"/><rect x="78" y="204" width="11" height="55" rx="4.2" fill="var(--stalk)"/><rect x="77" y="258" width="13" height="4" rx="2" fill="var(--node)"/><rect x="78" y="146" width="11" height="55" rx="4.2" fill="var(--stalk)"/><rect x="77" y="200" width="13" height="4" rx="2" fill="var(--node)"/><rect x="78" y="110" width="11" height="33" rx="4.2" fill="var(--stalk)"/><rect x="77" y="142" width="13" height="4" rx="2" fill="var(--node)"/><rect x="118" y="262" width="9" height="55" rx="3.5" fill="var(--stalk)"/><rect x="117" y="316" width="11" height="4" rx="2" fill="var(--node)"/><rect x="118" y="204" width="9" height="55" rx="3.5" fill="var(--stalk)"/><rect x="117" y="258" width="11" height="4" rx="2" fill="var(--node)"/><rect x="118" y="170" width="9" height="31" rx="3.5" fill="var(--stalk)"/><rect x="117" y="200" width="11" height="4" rx="2" fill="var(--node)"/><path d="M0 0 Q20.7 -9 46 0 Q20.7 9 0 0Z" transform="translate(44 70) rotate(-25)" fill="var(--leaf)"/><path d="M0 0 Q18.0 -9 40 0 Q18.0 9 0 0Z" transform="translate(44 72) rotate(-60)" fill="var(--leaf)"/><path d="M0 0 Q19.8 -9 44 0 Q19.8 9 0 0Z" transform="translate(30 100) rotate(200)" fill="var(--leaf)"/><path d="M0 0 Q17.1 -9 38 0 Q17.1 9 0 0Z" transform="translate(30 98) rotate(160)" fill="var(--leaf)"/><path d="M0 0 Q18.900000000000002 -9 42 0 Q18.900000000000002 9 0 0Z" transform="translate(89 140) rotate(-20)" fill="var(--leaf)"/><path d="M0 0 Q16.2 -9 36 0 Q16.2 9 0 0Z" transform="translate(89 142) rotate(-55)" fill="var(--leaf)"/><path d="M0 0 Q18.0 -9 40 0 Q18.0 9 0 0Z" transform="translate(78 175) rotate(195)" fill="var(--leaf)"/><path d="M0 0 Q17.1 -9 38 0 Q17.1 9 0 0Z" transform="translate(127 196) rotate(-15)" fill="var(--leaf)"/><path d="M0 0 Q14.4 -9 32 0 Q14.4 9 0 0Z" transform="translate(127 198) rotate(-50)" fill="var(--leaf)"/><path d="M0 0 Q15.3 -9 34 0 Q15.3 9 0 0Z" transform="translate(118 230) rotate(190)" fill="var(--leaf)"/><path d="M0 0 Q18.0 -8 40 0 Q18.0 8 0 0Z" transform="translate(44 160) rotate(-10)" fill="var(--leaf)"/><path d="M0 0 Q16.2 -7 36 0 Q16.2 7 0 0Z" transform="translate(30 200) rotate(185)" fill="var(--leaf)"/></svg>
@@ -249,22 +308,16 @@ function compute(games,roster){
 
   /* チーム */
   const TM=new Map();
-  const tm=name=>{let t=TM.get(name);if(!t){t={name,pt:0,n:0,r:[0,0,0,0],mem:[],idle:[],vs:new Map()};TM.set(name,t)}return t};
+  const tm=name=>{let t=TM.get(name);if(!t){t={name,pt:0,n:0,r:[0,0,0,0],mem:[],idle:[]};TM.set(name,t)}return t};
   if(roster) for(const [id,x] of roster){const t=tm(x.team); if(!P.has(id)){t.idle.push(x.name||id);t.pt+=x.adj}}
   L.forEach((p,i)=>{ if(!p.team)return; const t=tm(p.team); t.mem.push(i);t.pt+=p.pt;t.n+=p.n;p.r.forEach((c,k)=>t.r[k]+=c) });
-  for(const [,seats] of games) seats.forEach(([id,,pt],i)=>{
-    const a=ro(id); if(!a)return;
-    seats.forEach(([oid],j)=>{ const b=ro(oid); if(j===i||!b||b.team===a.team)return;
-      const vs=TM.get(a.team).vs; let h=vs.get(b.team); if(!h){h=[0,0,0];vs.set(b.team,h)}
-      h[0]++;h[1]+=pt;h[2]+=(i<j); });
-  });
   const TL=[...TM.values()].sort((a,b)=>b.pt-a.pt);
   const tix=new Map(TL.map((t,i)=>[t.name,i]));
   const stat=(pt,n,r)=>{const m=n||1;return{avg:pt/m,ar:n?(r[0]+2*r[1]+3*r[2]+4*r[3])/n:9,top:r[0]/m,ren:(r[0]+r[1])/m,avoid:n?1-r[3]/n:0}};
   const players=L.map((p,i)=>({i,id:p.id,rank:i+1,name:p.name,team:p.team,ti:p.team?tix.get(p.team):-1,adj:p.adj,pt:r1(p.pt),n:p.n,r:p.r,
     ...stat(p.pt,p.n,p.r),vs:[...p.vs].map(([o,h])=>[ix.get(o),h[0],r1(h[1]),h[2]])}));
   const teams=TL.map((t,i)=>({i,rank:i+1,name:t.name,pt:r1(t.pt),n:t.n,r:t.r,mem:t.mem,idle:t.idle,
-    ...stat(t.pt,t.n,t.r),vs:[...t.vs].map(([o,h])=>[tix.get(o),h[0],r1(h[1]),h[2]])}));
+    ...stat(t.pt,t.n,t.r)}));
   return {players,teams};
 }
 /* 大会のキーは 開始年月+枝番(YYYYMMXX) */
@@ -289,15 +342,18 @@ function load(view,tab){
   $("notice").textContent=note;$("notice").hidden=!note;
   $("month").value=view;
   if(dlg.open)dlg.close();
+  PIN=0;HOV=null;CX=null;
   show();
 }
 function show(){
   $("tabTeam").setAttribute("aria-selected",TAB==="team");
   $("tabPlayer").setAttribute("aria-selected",TAB==="player");
-  $("boxT").hidden=TAB!=="team";$("boxP").hidden=TAB!=="player";
-  const latest=CUR===MONTHS[0], h=(latest?"":CUR)+(TAB==="player"?(latest?"player":"-player"):"");
+  $("tabChart").setAttribute("aria-selected",TAB==="chart");
+  $("boxT").hidden=TAB!=="team";$("boxP").hidden=TAB!=="player";$("boxC").hidden=TAB!=="chart";
+  $("tools").hidden=TAB==="chart";     // 検索と着順の凡例は、順位表のときだけ
+  const latest=CUR===MONTHS[0], h=(latest?"":CUR)+(TAB==="team"?"":(latest?"":"-")+TAB);
   try{history.replaceState(null,"",h?"#"+h:location.pathname+location.search)}catch(e){}
-  render();
+  if(TAB==="chart")renderChart(); else render();
 }
 const bar=d=>`<div class="bar">${d.r.map(c=>`<span style="width:${d.n?c/d.n*100:0}%"></span>`).join("")}</div><div class="counts">${d.r.join(" / ")}</div>`;
 const rankCell=d=>NOGAMES?"—":d.rank<=3?`<span class="medal m${d.rank}">${d.rank}</span>`:d.rank;   // 対局前は順位を付けない
@@ -318,7 +374,7 @@ function render(){
     const L=T.filter(t=>!q||hit(t.name)||t.mem.some(i=>hit(D[i].name))||t.idle.some(hit)).sort(by(KEY.team));
     tb.insertAdjacentHTML("beforeend",L.length?L.map(t=>`<tbody class="tg${!NOGAMES&&t.rank<=3?" top":""}">
 <tr class="trow"><td class="rank">${rankCell(t)}</td>
-<td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーと相性表を見る">${esc(t.name)}</button></td>
+<td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t)}</tr>
 <tr class="mem"><td></td><td colspan="9"><div class="mems">${t.mem.map(i=>{const p=D[i];return `<button class="chip" data-p="${i}" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></button>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
 </tbody>`).join(""):`<tbody><tr><td colspan="10" class="empty">${SEASONS.get(CUR).roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
@@ -351,9 +407,7 @@ function openPlayer(i){
   $("dsub").innerHTML=`<span>個人 <b>${p.rank}位</b></span>`+
     (p.ti>=0?`<span>チーム <button data-t="${p.ti}">${esc(p.team)}</button> <b>${T[p.ti].rank}位</b></span>`:"")+
     `<span>合計PT <b class="${sign(p.pt)}">${f(p.pt,1)}</b>${p.adj?`(点数修正 <b>${f(p.adj,1)}</b> を含む)`:""}</span><span>対局数 <b>${p.n}</b></span><span>対戦相手 <b>${p.vs.length}</b>人</span>`;
-  $("secMem").hidden=true;
-  $("vsh").textContent="相性表";$("vopp").textContent="対戦相手";
-  $("dnote").textContent="同卓した対局だけで集計した、このプレイヤーの成績。獲得PTの高い順(相性の良い順)。先着率は相手より上の順位で終えた割合。";
+  $("secMem").hidden=true;$("secVs").hidden=false;
   $("vtb").innerHTML=[...p.vs].sort((a,b)=>b[2]-a[2]||b[1]-a[1]).map(([o,g,pt,w])=>{const q=D[o];
     return vsRow(`<button class="oppbtn" data-p="${o}">${esc(q.name)}</button><span class="orank">${q.rank}位</span>${q.team?`<span class="oteam">${esc(q.team)}</span>`:""}`,g,pt,w)}).join("");
   openDlg();
@@ -363,18 +417,13 @@ function openTeam(i){
   $("dscope").textContent=`${evName(CUR)} チーム成績`;
   $("dname").textContent=t.name;
   $("dsub").innerHTML=`<span>チーム <b>${NOGAMES?"—":t.rank+"位"}</b></span><span>合計PT <b class="${sign(t.pt)}">${f(t.pt,1)}</b></span><span>対局数 <b>${t.n}</b></span><span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`;
-  $("secMem").hidden=false;
+  $("secMem").hidden=false;$("secVs").hidden=true;
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
 <td class="l"><button class="oppbtn" data-p="${k}">${esc(p.name)}</button>${adjMark(p)}</td>
 <td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
 <td class="num ${sign(p.avg)}">${f(p.avg,2)}</td><td class="num">${p.ar.toFixed(2)}</td>
 <td class="num">${p.r.join(" / ")}</td></tr>`}).join("")+
     t.idle.map(n=>`<tr><td class="rank">—</td><td class="l">${esc(n)}</td><td class="num" colspan="5" style="text-align:left;color:var(--muted)">未対局</td></tr>`).join("");
-  $("vsh").textContent="相性表(対チーム)";$("vopp").textContent="相手チーム";
-  $("dnote").textContent="相手チームのメンバーと同卓した対局で、このチームのメンバーが得たPT。獲得PTの高い順(相性の良い順)。先着率は相手より上の順位で終えた割合。";
-  $("vtb").innerHTML=[...t.vs].sort((a,b)=>b[2]-a[2]||b[1]-a[1]).map(([o,g,pt,w])=>
-    vsRow(`<button class="oppbtn" data-t="${o}">${esc(T[o].name)}</button><span class="orank">${T[o].rank}位</span>`,g,pt,w)).join("")
-    ||'<tr><td colspan="5" class="empty">対局がまだない</td></tr>';
   openDlg();
 }
 document.addEventListener("click",e=>{
@@ -383,6 +432,112 @@ document.addEventListener("click",e=>{
 });
 $("dclose").addEventListener("click",()=>dlg.close());
 dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
+
+
+/* ---------- 順位グラフ ----------
+   対局記録を開催日ごとに区切り、その日までの合計PTでチームの順位を付けて、折れ線にする。
+   線は全チームを控えめな色で描き、選んだ1チームだけを強調する(12本を色だけで見分けるのは無理があるため)。 */
+let HIST=null,PIN=0,HOV=null,CX=null,GEO=null;
+function rankHistory(S){
+  if(!S.roster||!S.games.length||!T.length) return null;
+  const days=[...new Set(S.games.map(g=>g[0].slice(0,10)))].sort();
+  const di=new Map(days.map((d,i)=>[d,i])), tix=new Map(T.map(t=>[t.name,t.i]));
+  const gain=T.map(()=>days.map(()=>0)), base=T.map(()=>0);
+  for(const [,x] of S.roster){const i=tix.get(x.team); if(i!=null)base[i]+=x.adj}
+  for(const [st,seats] of S.games){const d=di.get(st.slice(0,10));
+    for(const [id,,pt] of seats){const x=S.roster.get(id),i=x?tix.get(x.team):null; if(i!=null)gain[i][d]+=pt}}
+  const pts=T.map((t,i)=>{let s=base[i];return gain[i].map(v=>r1(s+=v))});
+  const ranks=T.map(()=>[]);
+  days.forEach((_,d)=>T.map(t=>t.i).sort((a,b)=>pts[b][d]-pts[a][d]||a-b).forEach((ti,k)=>ranks[ti][d]=k+1));
+  return {days,pts,ranks};
+}
+const md=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}`;
+function renderChart(){
+  const S=SEASONS.get(CUR);
+  HIST=rankHistory(S);
+  const none=!HIST;
+  $("cempty").hidden=!none;
+  $("cempty").textContent=!S.roster?"チーム表がないため、順位グラフは出せない。":"対局がまだないため、順位グラフは出せない。";
+  ["cteams","cscroll","cdetails"].forEach(id=>$(id).hidden=none);
+  if(none)return;
+  if(PIN>=T.length)PIN=0;
+  $("cteams").innerHTML=T.map(t=>`<button type="button" class="tchip" data-c="${t.i}" aria-pressed="${t.i===PIN}"><b>${t.rank}</b>${esc(t.name)}</button>`).join("");
+  $("ctbl").innerHTML=`<thead><tr><th class="l">チーム</th>${HIST.days.map(d=>`<th>${md(d)}</th>`).join("")}</tr></thead><tbody>`+
+    T.map(t=>`<tr><td class="l" style="font-weight:700">${esc(t.name)}</td>${HIST.ranks[t.i].map(r=>`<td class="num">${r}</td>`).join("")}</tr>`).join("")+"</tbody>";
+  drawChart();
+}
+function drawChart(){
+  if(!HIST)return;
+  const n=T.length,days=HIST.days,m=days.length;
+  const W=Math.max($("cscroll").clientWidth,640),rowH=Math.max(20,Math.min(32,Math.floor(400/n)));
+  const L=40,R=140,top=30,H=top+(n-1)*rowH+46;
+  const X=i=>m>1?L+i*(W-L-R)/(m-1):L+(W-L-R)/2, Y=r=>top+(r-1)*rowH;
+  GEO={W,H,L,R,top,rowH,X,Y,n,m};
+  const hi=HOV!=null?HOV:PIN;
+  // 順位が入れ替わるところを、なめらかな曲線でつなぐ
+  const path=ti=>HIST.ranks[ti].map((r,i)=>{const x=X(i),y=Y(r); if(!i)return `M${x} ${y}`;
+    const x0=X(i-1),y0=Y(HIST.ranks[ti][i-1]),c=(x-x0)/2;return `C${x0+c} ${y0} ${x-c} ${y} ${x} ${y}`}).join("");
+  const step=m>1?Math.max(1,Math.ceil(46/((W-L-R)/(m-1)))):1;
+  let g=`<text class="cax" x="${L-14}" y="${top-16}" text-anchor="end">順位</text>`;
+  for(let i=0;i<m;i++){
+    g+=`<line class="cgrid" x1="${X(i)}" y1="${top-8}" x2="${X(i)}" y2="${Y(n)+8}"/>`;
+    if(i%step===0||i===m-1&&(m-1)%step>=step/2) g+=`<text class="cax" x="${X(i)}" y="${Y(n)+28}" text-anchor="middle">${md(days[i])}</text>`;
+  }
+  for(let r=1;r<=n;r++) g+=`<text class="cax" x="${L-14}" y="${Y(r)+4}" text-anchor="end">${r}</text>`;
+  const order=T.map(t=>t.i).filter(i=>i!==hi).concat(hi);          // 強調する線を最後(いちばん上)に描く
+  for(const ti of order){
+    const on=ti===hi,last=HIST.ranks[ti][m-1];
+    g+=m>1?`<path class="cline${on?" on":""}" d="${path(ti)}"/>`:"";
+    if(on||m===1) g+=HIST.ranks[ti].map((r,i)=>`<circle class="cdot${on?" on":""}" cx="${X(i)}" cy="${Y(r)}" r="${on?4.5:3.5}"/>`).join("");
+    g+=`<text class="clab${on?" on":""}" x="${X(m-1)+12}" y="${Y(last)+4}">${esc(T[ti].name)}</text>`;
+  }
+  g+=`<line class="ccross" id="ccross" x1="0" y1="${top-8}" x2="0" y2="${Y(n)+8}" visibility="hidden"/>`;
+  const svg=$("csvg");
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("width",W);svg.setAttribute("height",H);
+  svg.setAttribute("aria-label",`チーム順位の推移。${days.length}日分、${n}チーム。強調しているのは ${T[hi].name}。詳しい値は下の表にある。`);
+  svg.innerHTML=g;
+  $("cplot").style.width=W+"px";
+  showCross();
+}
+/* 縦の目印と、その日の全チームの順位・PT */
+function showCross(){
+  const c=$("ccross"),tip=$("ctip"); if(!c)return;
+  if(CX==null||!HIST){c.setAttribute("visibility","hidden");tip.hidden=true;return}
+  const {X,W,L,R}=GEO,x=X(CX),hi=HOV!=null?HOV:PIN,d=HIST.days[CX];
+  c.setAttribute("x1",x);c.setAttribute("x2",x);c.setAttribute("visibility","visible");
+  tip.textContent="";                                   // 名前は外から来たデータなので、文字として入れる
+  const head=document.createElement("div");head.className="ctd";head.textContent=`${d.replace(/-/g,"/")}・${CX+1}日目`;tip.appendChild(head);
+  const tb=document.createElement("table");
+  T.map(t=>t.i).sort((a,b)=>HIST.ranks[a][CX]-HIST.ranks[b][CX]).forEach(ti=>{
+    const tr=document.createElement("tr"); if(ti===hi)tr.className="on";
+    [[HIST.ranks[ti][CX],"r"],[T[ti].name,"n"],[f(HIST.pts[ti][CX],1),"p "+sign(HIST.pts[ti][CX])]].forEach(([v,cls])=>{const td=document.createElement("td");td.className=cls;td.textContent=v;tr.appendChild(td)});
+    tb.appendChild(tr);
+  });
+  tip.appendChild(tb);tip.hidden=false;
+  const right=x<(L+W-R)/2;                              // 目印の反対側へ逃がす
+  tip.style.left=right?(x+14)+"px":"";tip.style.right=right?"":(W-x+14)+"px";
+}
+function locate(e){
+  const svg=$("csvg"),b=svg.getBoundingClientRect(),{W,H,X,top,rowH,n,m}=GEO;
+  const px=(e.clientX-b.left)*W/b.width,py=(e.clientY-b.top)*H/b.height;
+  let day=0;for(let i=1;i<m;i++)if(Math.abs(X(i)-px)<Math.abs(X(day)-px))day=i;
+  const rank=Math.max(1,Math.min(n,Math.round((py-top)/rowH)+1));
+  return {day,ti:T.findIndex(t=>HIST.ranks[t.i][day]===rank)};
+}
+function setPin(ti){PIN=ti;$("cteams").querySelectorAll(".tchip").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.c===PIN));drawChart()}
+$("csvg").addEventListener("pointermove",e=>{ if(!HIST)return; const {day,ti}=locate(e);
+  if(ti!==HOV){HOV=ti;CX=day;drawChart()} else if(day!==CX){CX=day;showCross()} });
+$("csvg").addEventListener("pointerleave",e=>{ if(e.pointerType==="touch")return; HOV=null;CX=null;drawChart() });
+$("csvg").addEventListener("click",e=>{ if(!HIST)return; const {day,ti}=locate(e);CX=day;HOV=null;setPin(ti) });
+$("csvg").addEventListener("keydown",e=>{ if(!HIST)return;
+  const m=HIST.days.length;
+  if(e.key==="ArrowRight"||e.key==="ArrowLeft"){e.preventDefault();CX=CX==null?m-1:Math.max(0,Math.min(m-1,CX+(e.key==="ArrowRight"?1:-1)));showCross()}
+  else if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();setPin((PIN+(e.key==="ArrowDown"?1:T.length-1))%T.length)}
+  else if(e.key==="Escape"){CX=null;showCross()} });
+$("csvg").addEventListener("blur",()=>{CX=null;HOV=null;showCross()});
+$("cteams").addEventListener("click",e=>{const b=e.target.closest(".tchip");if(b)setPin(+b.dataset.c)});
+let rzT=0;
+window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(TAB==="chart"&&HIST)drawChart()},120)});
 
 /* CSV 読み込み */
 function parseCSV(text){
@@ -513,13 +668,14 @@ async function loadSeason(key){
   if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001.csv、対局記録を 20261001-games.csv のような名前で置いてほしい。`);return}
   $("month").innerHTML=MONTHS.map(k=>`<option value="${k}">${esc(evTitle(k)?`${evTitle(k)}(${ymLabel(k)})`:`${ymLabel(k)} 枝番${k.slice(6)}`)}</option>`).join("");
   $("past").hidden=MONTHS.length<2;
-  const m=location.hash.slice(1).match(/^(\d{8})?-?(player)?$/)||[];
+  const m=location.hash.slice(1).match(/^(\d{8})?-?(player|chart)?$/)||[];
   const view=SEASONS.has(m[1])?m[1]:MONTHS[0];
-  load(view,m[2]||!SEASONS.get(view).roster?"player":"team");
+  load(view,m[2]||(SEASONS.get(view).roster?"team":"player"));
   if(BAD.length) console.warn("読めなかったCSV:",BAD);
 })();
 $("tabTeam").addEventListener("click",()=>{if(CUR){TAB="team";show()}});
 $("tabPlayer").addEventListener("click",()=>{if(CUR){TAB="player";show()}});
+$("tabChart").addEventListener("click",()=>{if(CUR){TAB="chart";show()}});
 $("month").addEventListener("change",e=>e.target.value&&load(e.target.value));
 </script>
 
