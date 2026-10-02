@@ -455,7 +455,7 @@ function load(view,tab,lg){
     (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${GAMES.length}</b></span>`+
     (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
     (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
-  const note=!S.roster?`チーム表(${view}.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
+  const note=!S.roster?`チーム表(${view}-master.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
     :PENDING?`${S.leagues[LG-1].name}がまだ終了していないため、${lgi.name}に進むチームは決まっていない。`
     :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の${X.prov?"今の":""}上位${T.length}チームを、進出するチームとして表示している。`
     :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
@@ -867,7 +867,7 @@ function fail(msg){$("tT").querySelectorAll("tbody").forEach(x=>x.remove());$("t
 
 /* データの置き場所。
    データ用リポジトリ(DATA_REPO)に、1大会につき2つのCSVを置く。YYYYMMXX は 開始年4桁+開始月2桁+枝番2桁。
-     YYYYMMXX.csv         … チーム表(チーム表作成ページ event-create の出力)
+     YYYYMMXX-master.csv  … チーム表(大会CSV作成ツール event-create の出力)
      YYYYMMXX-games1.csv  … 1次リーグの対局記録(雀魂の「牌譜履歴」)。2次リーグは -games2.csv、以降も同じ
      YYYYMMXX-schedule.csv … 対局スケジュール(対局スケジュール作成ツール event-schedule の出力)。無くてもよい
    リポジトリ名を変えたら、ここも変える。フォルダに入れるなら DATA_DIR を "フォルダ名/" にする。 */
@@ -886,7 +886,7 @@ const p2=v=>String(v).padStart(2,"0");
 let FILES=null;      // APIで取れたファイル名の一覧(取れなければ null のまま、1つずつ確かめる)
 const isKey=s=>/^\d{4}(0[1-9]|1[0-2])(0[1-9]|[1-9]\d)$/.test(s);
 /* 大会のファイルを探す
-   1. GitHubのAPIでファイル一覧を取り、YYYYMMXX.csv と YYYYMMXX-games1.csv などをすべて拾う
+   1. GitHubのAPIでファイル一覧を取り、YYYYMMXX-master.csv と YYYYMMXX-games1.csv などをすべて拾う
    2. APIが使えないとき(回数制限・手元での確認など)は、来月から過去へ順に、枝番01から確かめる */
 async function listByApi(){
   if(!REPO_OWNER) return null;
@@ -894,7 +894,7 @@ async function listByApi(){
     const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${DATA_REPO}/contents/${DATA_DIR.replace(/\/$/,"")}?t=${Date.now()}`);
     if(!r.ok) return null;
     FILES=new Set((await r.json()).map(f=>f.name));
-    const keys=[...FILES].map(n=>(n.match(/^(\d{8})(-games\d)?\.csv$/)||[])[1]).filter(k=>k&&isKey(k));
+    const keys=[...FILES].map(n=>(n.match(/^(\d{8})-(?:master|games\d)\.csv$/)||[])[1]).filter(k=>k&&isKey(k));
     return [...new Set(keys)];
   }catch(e){return null}
 }
@@ -924,10 +924,10 @@ const BAD=[];
    (雀魂で1つの大会を続けて使うと、あとのリーグの牌譜履歴に前のリーグの対局も入るため) */
 async function loadSeason(key){
   const get=n=>!FILES||FILES.has(n)?fetchData(n):Promise.resolve({ok:false});
-  const t=await get(`${key}.csv`);
+  const t=await get(`${key}-master.csv`);
   let roster=null;
   if(t.ok) try{roster=toRoster(decode(await t.arrayBuffer()))}
-  catch(err){console.warn(key,err);BAD.push(`${key}.csv(${err.message})`)}
+  catch(err){console.warn(key,err);BAD.push(`${key}-master.csv(${err.message})`)}
   const leagues=roster&&roster.leagues.length?roster.leagues:[{name:"",teams:0,carry:0}];
   const [sc,...res]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`))]);
   let sched=null;
@@ -949,7 +949,7 @@ async function loadSeason(key){
     : await probeBackward();
   for(const [ym,s] of res) if(s) SEASONS.set(ym,s);
   MONTHS=[...SEASONS.keys()].sort().reverse();
-  if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001.csv、対局記録を 20261001-games1.csv のような名前で置いてほしい。`);return}
+  if(!MONTHS.length){fail(BAD.length?`CSVを読めなかった: ${BAD.join("、")}`:`CSVが見つからない。データ用リポジトリ(${DATA_REPO})に、チーム表を 20261001-master.csv、対局記録を 20261001-games1.csv のような名前で置いてほしい。`);return}
   $("month").innerHTML=MONTHS.map(k=>`<option value="${k}">${esc(evTitle(k)?`${evTitle(k)}(${ymLabel(k)})`:`${ymLabel(k)}のチーム戦 枝番${k.slice(6)}`)}</option>`).join("");
   $("past").hidden=MONTHS.length<2;
   const m=location.hash.slice(1).match(/^(\d{8})?-?(?:L(\d))?-?(player|chart|schedule)?$/)||[];
