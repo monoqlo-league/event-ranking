@@ -245,6 +245,11 @@ tbody.prep tr:hover td{background:transparent}
 .rrest{margin:0;font-size:13px;color:var(--muted)}
 .rrest b{font-weight:700;margin-right:10px}
 .rrest.on{color:var(--ink)}
+
+/* 見出しのリーグ名と、終了の印 */
+h1 .tt{position:relative;max-width:100%}
+h1 .tlg{display:block;font-size:.62em;font-weight:700;letter-spacing:.06em;color:var(--accent);margin-top:2px}
+h1 .stamp{position:absolute;right:-18px;top:50%;width:clamp(88px,16vw,116px);height:auto;transform:translateY(-50%) rotate(-12deg);opacity:.9;pointer-events:none}
 </style>
 </head>
 <body>
@@ -439,7 +444,11 @@ function load(view,tab,lg){
   const ds=GAMES.map(g=>g[0].slice(0,10)).sort(), a=ds[0]||"", b=ds[ds.length-1]||"";
   const free=D.filter(d=>d.ti<0).length, title=evTitle(view);
   const people=NOGAMES&&S.roster?T.reduce((x,t)=>x+t.mem.length+t.idle.length,0):D.length;
-  $("ttl").innerHTML=title?`<span>${esc(title)}</span> <span>ランキング</span>`:`<span>${ymLabel(view)}</span> <span>チーム戦ランキング</span>`;
+  /* 見出しは 大会名、改行して -リーグ名-。終わったリーグには「終了」の印を重ねる(最後のリーグは「完了」の印) */
+  const stamp=finished(S,LG)===true?(LG===n-1?"完了":"終了"):"";
+  $("ttl").innerHTML=`<span class="tt">`+(title?`<span>${esc(title)}</span> <span>ランキング</span>`:`<span>${ymLabel(view)}</span> <span>チーム戦ランキング</span>`)+
+    (lgi.name?`<span class="tlg">-${esc(lgi.name)}-</span>`:"")+
+    (stamp?`<img class="stamp" src="${encodeURIComponent(stamp)}.png" alt="${stamp}" width="180" height="180">`:"")+`</span>`;
   $("lgrow").hidden=n<2;
   $("lgs").innerHTML=n<2?"":S.leagues.map((l,k)=>`<button class="tab" role="tab" aria-selected="${k===LG}" data-l="${k}">${esc(l.name)}<span>${k?l.teams:S.roster?leagueOf(S,0).teams.length:""}チーム</span></button>`).join("");
   $("meta").innerHTML=`<span>開催 <b>${ymLabel(view)}</b></span>`+
