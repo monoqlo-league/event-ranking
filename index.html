@@ -360,7 +360,7 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
 <section class="chartbox" id="boxC" hidden aria-labelledby="chh">
   <div class="chead">
     <h2 id="chh">チーム順位の推移</h2>
-    <p class="chint">開催日ごとに、その日までの合計PTで付けた順位。チーム名を押すと、そのチームの線を強調する。グラフに触れると、その日の全チームの順位とPTが出る。</p>
+    <p class="chint">開催日ごとに、その日までの合計PTで付けた順位。<span id="clead"></span>チーム名を押すと、そのチームの線を強調する。グラフに触れると、その日の全チームの順位とPTが出る。</p>
   </div>
   <p class="empty" id="cempty" hidden></p>
   <div class="cteams" id="cteams" role="group" aria-label="強調するチーム"></div>
@@ -375,7 +375,7 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・メンバーの成績・そのチームを強調した順位の推移が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・メンバーの成績・そのチームを強調した順位の推移が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。2次以降のリーグは、前のリーグの最終結果を最初の点にする。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 <div class="admin" id="admin">
   <span class="alabel">管理者用</span>
   <input id="apw" class="apw" type="password" placeholder="パスワード" aria-label="管理者用のパスワード" autocomplete="off" aria-describedby="amsg">
@@ -612,7 +612,7 @@ function openTeam(i){
   if(H){
     const {g,geo}=chartMarkup(H,i,Math.max($("dscroll").clientWidth,560)),svg=$("dsvg");
     svg.setAttribute("viewBox",`0 0 ${geo.W} ${geo.H}`);svg.setAttribute("width",geo.W);svg.setAttribute("height",geo.H);
-    svg.setAttribute("aria-label",`チーム順位の推移。${H.days.length}日分、${T.length}チーム。${t.name} を強調している。最新の順位は${H.ranks[i][H.days.length-1]}位。`);
+    svg.setAttribute("aria-label",`チーム順位の推移。${H.lead?`${H.lead}の最終結果と、`:""}${H.real}日分、${T.length}チーム。${t.name} を強調している。最新の順位は${H.ranks[i][H.days.length-1]}位。`);
     svg.innerHTML=g;
   }
 }
@@ -627,21 +627,29 @@ dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
 
 /* ---------- 順位グラフ ----------
    対局記録を開催日ごとに区切り、その日までの合計PTでチームの順位を付けて、折れ線にする。
+   2次以降のリーグは、前のリーグの最終結果(持ち越したPTと、前のリーグの順位)を1つ目の点にし、初日を2つ目の点にする。
    線は全チームを控えめな色で描き、選んだ1チームだけを強調する(12本を色だけで見分けるのは無理があるため)。 */
 let HIST=null,PIN=0,HOV=null,CX=null,GEO=null;
 function rankHistory(S){
   if(!S.roster||!GAMES.length||!T.length) return null;
-  const days=[...new Set(GAMES.map(g=>g[0].slice(0,10)))].sort();
-  const di=new Map(days.map((d,i)=>[d,i])), tix=new Map(T.map(t=>[t.name,t.i]));
+  const real=[...new Set(GAMES.map(g=>g[0].slice(0,10)))].sort();
+  /* lead=1つ目の点に出す、前のリーグの名前(1次リーグは "")。その点の日付は "" にしておく */
+  const lead=LG?S.leagues[LG-1].name:"",off=lead?1:0,days=(lead?[""]:[]).concat(real);
+  const di=new Map(real.map((d,i)=>[d,i+off])), tix=new Map(T.map(t=>[t.name,t.i]));
   const gain=T.map(()=>days.map(()=>0)), base=T.map(t=>t.base);      // 持ち越しPTから始める
   for(const [st,seats] of GAMES){const d=di.get(st.slice(0,10));
     for(const [id,,pt] of seats){const x=S.roster.get(id),i=x?tix.get(x.team):null; if(i!=null)gain[i][d]+=pt}}
-  const pts=T.map((t,i)=>{let s=base[i];return gain[i].map(v=>r1(s+=v))});
+  const pts=T.map((t,i)=>{let s=base[i];return gain[i].map(v=>r1(s+=v))});      // 1つ目の点(lead)は、対局がないので持ち越したPTのまま
   const ranks=T.map(()=>[]);
   days.forEach((_,d)=>T.map(t=>t.i).sort((a,b)=>pts[b][d]-pts[a][d]||a-b).forEach((ti,k)=>ranks[ti][d]=k+1));
-  return {days,pts,ranks};
+  if(lead){      // 1つ目の点の順位は、前のリーグの最終順位
+    const prev=new Map(leagueOf(S,LG-1).teams.map((t,i)=>[t.name,i])),pos=t=>prev.has(t.name)?prev.get(t.name):1e9;
+    [...T].sort((a,b)=>pos(a)-pos(b)||b.base-a.base||a.i-b.i).forEach((t,k)=>ranks[t.i][0]=k+1);
+  }
+  return {days,pts,ranks,lead,real:real.length};
 }
 const md=d=>`${+d.slice(5,7)}/${+d.slice(8,10)}`;
+const dayLab=(H,i)=>H.lead&&i===0?`${H.lead}結果`:md(H.days[i]);      // 横軸の目盛り
 function renderChart(){
   const S=SEASONS.get(CUR);
   HIST=rankHistory(S);
@@ -651,6 +659,7 @@ function renderChart(){
   ["cteams","cscroll"].forEach(id=>$(id).hidden=none);
   if(none)return;
   if(PIN>=T.length)PIN=0;
+  $("clead").textContent=HIST.lead?`最初の点は、${HIST.lead}の最終結果(持ち越したPT)。`:"";
   $("cteams").innerHTML=T.map(t=>`<button type="button" class="tchip" data-c="${t.i}" aria-pressed="${t.i===PIN}"><b>${t.rank}</b>${esc(t.name)}</button>`).join("");
   drawChart();
 }
@@ -666,9 +675,12 @@ function chartMarkup(H0,hi,W){
   const path=ti=>H0.ranks[ti].map((r,i)=>`${i?"L":"M"}${X(i)} ${Y(r)}`).join("");
   const step=m>1?Math.max(1,Math.ceil(46/((W-L-R)/(m-1)))):1;
   let g=`<text class="cax" x="${L-14}" y="${top-16}" text-anchor="end">順位</text>`;
+  /* 1つ目の点が前のリーグの結果のときは、その目盛り(「予選結果」など)が長いので、左にはみ出さない位置に置き、重なる日付の目盛りは出さない */
+  const lab0=H0.lead?dayLab(H0,0):"",w0=[...lab0].reduce((w,ch)=>w+(ch.charCodeAt(0)>255?11.5:7),0),x0=Math.max(4,X(0)-w0/2),end0=lab0?x0+w0+6:-1e9,off=lab0?1:0;
   for(let i=0;i<m;i++){
     g+=`<line class="cgrid" x1="${X(i)}" y1="${top-8}" x2="${X(i)}" y2="${Y(n)+8}"/>`;
-    if(i%step===0||i===m-1&&(m-1)%step>=step/2) g+=`<text class="cax" x="${X(i)}" y="${Y(n)+28}" text-anchor="middle">${md(days[i])}</text>`;
+    if(lab0&&i===0) g+=`<text class="cax" x="${x0}" y="${Y(n)+28}" text-anchor="start">${esc(lab0)}</text>`;
+    else if(((i-off)%step===0||i===m-1&&(m-1-off)%step>=step/2)&&X(i)-18>end0) g+=`<text class="cax" x="${X(i)}" y="${Y(n)+28}" text-anchor="middle">${esc(dayLab(H0,i))}</text>`;
   }
   for(let r=1;r<=n;r++) g+=`<text class="cax" x="${L-14}" y="${Y(r)+4}" text-anchor="end">${r}</text>`;
   const order=T.map(t=>t.i).filter(i=>i!==hi).concat(hi);          // 強調する線を最後(いちばん上)に描く
@@ -690,7 +702,7 @@ function drawChart(){
   const {W,H,top,Y,n}=geo,days=HIST.days;
   const svg=$("csvg");
   svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("width",W);svg.setAttribute("height",H);
-  svg.setAttribute("aria-label",`チーム順位の推移。${days.length}日分、${n}チーム。強調しているのは ${T[hi].name}。左右の矢印キーで日を、上下の矢印キーでチームを選べる。`);
+  svg.setAttribute("aria-label",`チーム順位の推移。${HIST.lead?`${HIST.lead}の最終結果と、`:""}${HIST.real}日分、${n}チーム。強調しているのは ${T[hi].name}。左右の矢印キーで日を、上下の矢印キーでチームを選べる。`);
   svg.innerHTML=g+`<line class="ccross" id="ccross" x1="0" y1="${top-8}" x2="0" y2="${Y(n)+8}" visibility="hidden"/>`;
   $("cplot").style.width=W+"px";
   showCross();
@@ -702,7 +714,7 @@ function showCross(){
   const {X,W,L,R}=GEO,x=X(CX),hi=HOV!=null?HOV:PIN,d=HIST.days[CX];
   c.setAttribute("x1",x);c.setAttribute("x2",x);c.setAttribute("visibility","visible");
   tip.textContent="";                                   // 名前は外から来たデータなので、文字として入れる
-  const head=document.createElement("div");head.className="ctd";head.textContent=`${d.replace(/-/g,"/")}・${CX+1}日目`;tip.appendChild(head);
+  const head=document.createElement("div");head.className="ctd";head.textContent=HIST.lead&&CX===0?`${HIST.lead}の最終結果(持ち越したPT)`:`${d.replace(/-/g,"/")}・${CX+(HIST.lead?0:1)}日目`;tip.appendChild(head);
   const tb=document.createElement("table");
   T.map(t=>t.i).sort((a,b)=>HIST.ranks[a][CX]-HIST.ranks[b][CX]).forEach(ti=>{
     const tr=document.createElement("tr"); if(ti===hi)tr.className="on";
