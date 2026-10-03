@@ -743,15 +743,26 @@ let SPIN=null;                                            // 強調している�
 let SDAY=null;                                            // 表示している開催日(YYYY-MM-DD)。リーグを切り替えたら選び直す
 const WDAY="日月火水木金土";
 const dayLabel=d=>{const t=new Date(Date.UTC(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10)));return `${t.getUTCMonth()+1}/${t.getUTCDate()}(${WDAY[t.getUTCDay()]})`};
-/* このリーグのスケジュール。リーグ名で探し、名前が合わなければ並び順で探す */
+/* このリーグのスケジュール。リーグ名で探す。スケジュールのCSVに入っていないリーグ(日程が未定のリーグ)は null で、
+   そのリーグだけ、スケジュールのCSVがない大会と同じ扱いになる。
+   CSVのリーグ名が大会マスターのどのリーグ名とも合わないとき(リーグ名のない古いCSVなど)だけ、並び順で探す */
 function schedOf(S,k){
   if(!S.sched)return null;
-  return S.sched.get(S.leagues[k].name)||(S.sched.has(S.leagues[k].name)?null:[...S.sched.values()][k])||null;
+  const hit=S.sched.get(S.leagues[k].name);
+  if(hit)return hit;
+  return S.leagues.some(l=>S.sched.has(l.name))?null:[...S.sched.values()][k]||null;
 }
 const plannedGames=L=>L.rounds.reduce((x,r)=>x+r.tables.length,0);
 /* スケジュールタブに出すスケジュール。2次以降のリーグは、前のリーグが終わったと判断されるまで出さない
    (出さないあいだは、スケジュールのCSVがないときと同じ表示になる) */
-function shownSched(S,k){return !k||finished(S,k-1)===true?schedOf(S,k):null}
+function shownSched(S,k){
+  if(!k)return schedOf(S,k);
+  const fin=finished(S,k-1);
+  if(fin===true)return schedOf(S,k);
+  /* 前のリーグにスケジュールがなく、終わったか判断できないとき: このリーグの対局が始まって、出るチームが決まってから出す */
+  if(fin===null){const X=leagueOf(S,k);return X.games.length&&!X.pending&&!X.prov?schedOf(S,k):null}
+  return null;
+}
 /* 順位の枠(「予選1位」など)→ 実際のチーム名。進むチームが決まっていなければ null */
 function slotNames(S,k){
   if(!k||!S.roster||leagueOf(S,k).pending||leagueOf(S,k).prov)return null;
