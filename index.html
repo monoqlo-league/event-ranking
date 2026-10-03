@@ -249,7 +249,9 @@ tbody.prep tr:hover td{background:transparent}
 /* 見出しのリーグ名と、終了の印 */
 h1 .tt{position:relative;max-width:100%}
 h1 .tlg{display:block;font-size:.62em;font-weight:700;letter-spacing:.06em;color:var(--accent);margin-top:2px}
-h1 .stamp{position:absolute;right:-18px;top:50%;width:clamp(88px,16vw,116px);height:auto;transform:translateY(-50%) rotate(-12deg);opacity:.9;pointer-events:none}
+/* 印の下端を見出しの下端にそろえ、上へ伸ばす。見出しの下の行(開催・対局数・参加者など)には重ねない */
+h1 .stamp{position:absolute;right:-18px;bottom:11px;width:clamp(76px,14vw,104px);height:auto;transform:rotate(-12deg);opacity:.9;pointer-events:none}
+@media (max-width:600px){h1 .stamp{right:0}}        /* 狭い画面では、右のパンダにも重ねない */
 
 /* ボーダー(トップ)とのPT差 */
 #tT{min-width:840px}
