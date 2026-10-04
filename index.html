@@ -385,7 +385,7 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・メンバーの成績・そのチームを強調した順位の推移が開く。個人順位のプレイヤー名を押すと、その人の戦績が開く(予選は、手動で集計した和了率なども出る)。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。2次以降のリーグは、前のリーグの最終結果を最初の点にする。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・詳細成績(予選だけ)・メンバーの成績・そのチームを強調した順位の推移が開く。個人順位のプレイヤー名を押すと、その人の戦績が開く(予選は、手動で集計した和了率なども出る)。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。2次以降のリーグは、前のリーグの最終結果を最初の点にする。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 <div class="admin" id="admin">
   <span class="alabel">管理者用</span>
   <input id="apw" class="apw" type="password" placeholder="パスワード" aria-label="管理者用のパスワード" autocomplete="off" aria-describedby="amsg">
@@ -411,6 +411,11 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
     <section class="awards" id="secRec" aria-labelledby="rech">
       <h3 id="rech">戦績 <span>チーム順位の行と同じ内容</span></h3>
       <div class="dtbox"><table class="vs rec"><thead><tr><th style="text-align:center">順位</th><th>合計PT</th><th id="thGapD">ボーダーとの差</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>トップ率</th><th>連対率</th><th>ラス回避率</th><th>着順分布</th></tr></thead><tbody id="rtb"></tbody></table></div>
+    </section>
+    <section class="awards" id="secTStat" aria-labelledby="tsth" hidden>
+      <h3 id="tsth">詳細成績 <span id="tstsub"></span></h3>
+      <div class="stgrid" id="tstgrid"></div>
+      <p class="stnote" id="tstnote"></p>
     </section>
     <section class="awards" id="secMem" aria-labelledby="memh">
       <h3 id="memh">メンバー <span>個人成績</span></h3>
@@ -611,7 +616,7 @@ const dlg=$("dlg");
 function openDlg(){ if(!dlg.open)dlg.showModal(); $("dclose").focus({preventScroll:true}); dlg.scrollTop=0 }
 /* ダイアログの中身を、チーム用(team=true)か個人用に切り替える */
 function dlgMode(team){
-  ["secRec","secMem"].forEach(id=>$(id).hidden=!team);
+  ["secRec","secMem","secTStat"].forEach(id=>$(id).hidden=!team);
   ["secPRec","secStat"].forEach(id=>$(id).hidden=team);
   if(!team)$("secChart").hidden=true;
 }
@@ -670,6 +675,37 @@ const FIXED_STATS={"20260901":[{
   "86425605":[83,12,14,21,10,3,2,5,7,8,3,89,60500]
 }]};
 const STAT_KEYS=["hands","agari","houju","furo","riichi","riichiWin","riichiDeal","tsumo","ron","dama","damaWin","turns","pts"];
+/* チームの詳細成績。メンバーの件数を足したもの(1人でも集計があれば出す)。無ければ null */
+function teamStat(S,key,lg,team){
+  if(!S.roster)return null;
+  let sum=null,n=0;
+  for(const [id,x] of S.roster){
+    if(x.team!==team)continue;
+    const a=fixedStat(key,lg,id); if(!a)continue;
+    n++; if(!sum)sum=Object.fromEntries(STAT_KEYS.map(k=>[k,0]));
+    STAT_KEYS.forEach(k=>sum[k]+=a[k]);
+  }
+  return sum&&{...sum,people:n};
+}
+const STAT_NOTE="和了率・放銃率・副露率・立直率・ダマ率は、局数に対する割合。立直成功率・立直放銃率は立直の回数、ダマ成功率はダマの回数、ツモ率・ロン率は和了の回数に対する割合。副露率は、副露した局の割合(1局に何回鳴いても1回。暗槓は含めない)。";
+/* 詳細成績のタイル(個人・チーム共通)。x=件数 */
+function statTiles(x){
+  const tile=(k,v,c)=>`<div class="st"><div class="k">${k}</div><div class="v">${v}</div><div class="c">${c}</div></div>`;
+  return [
+    tile("和了率",pct(x.agari,x.hands),`${x.agari}回 / ${x.hands}局`),
+    tile("放銃率",pct(x.houju,x.hands),`${x.houju}回 / ${x.hands}局`),
+    tile("副露率",pct(x.furo,x.hands),`${x.furo}局 / ${x.hands}局`),
+    tile("立直率",pct(x.riichi,x.hands),`${x.riichi}回 / ${x.hands}局`),
+    tile("立直成功率",pct(x.riichiWin,x.riichi),`${x.riichiWin}回 / 立直${x.riichi}回`),
+    tile("立直放銃率",pct(x.riichiDeal,x.riichi),`${x.riichiDeal}回 / 立直${x.riichi}回`),
+    tile("ダマ率",pct(x.dama,x.hands),`${x.dama}回 / ${x.hands}局`),
+    tile("ダマ成功率",pct(x.damaWin,x.dama),`${x.damaWin}回 / ダマ${x.dama}回`),
+    tile("ツモ率",pct(x.tsumo,x.agari),`${x.tsumo}回 / 和了${x.agari}回`),
+    tile("ロン率",pct(x.ron,x.agari),`${x.ron}回 / 和了${x.agari}回`),
+    tile("平均立直巡目",x.riichi?(x.turns/x.riichi).toFixed(2)+"巡":"—",`立直${x.riichi}回`),
+    tile("平均和了点",x.agari?comma(x.pts/x.agari)+"点":"—",`和了${x.agari}回`),
+  ].join("");
+}
 function fixedStat(key,lg,id){
   const a=((FIXED_STATS[key]||[])[lg]||{})[id];
   return a?Object.fromEntries(STAT_KEYS.map((k,i)=>[k,a[i]])):null;
@@ -689,22 +725,8 @@ function openPlayer(id){
   $("secStat").hidden=!x;
   if(x){
     $("stsub").textContent=`${lg?lg+"・":""}${x.hands}局を手動で集計`;
-    const tile=(k,v,c)=>`<div class="st"><div class="k">${k}</div><div class="v">${v}</div><div class="c">${c}</div></div>`;
-    $("stgrid").innerHTML=[
-      tile("和了率",pct(x.agari,x.hands),`${x.agari}回 / ${x.hands}局`),
-      tile("放銃率",pct(x.houju,x.hands),`${x.houju}回 / ${x.hands}局`),
-      tile("副露率",pct(x.furo,x.hands),`${x.furo}局 / ${x.hands}局`),
-      tile("立直率",pct(x.riichi,x.hands),`${x.riichi}回 / ${x.hands}局`),
-      tile("立直成功率",pct(x.riichiWin,x.riichi),`${x.riichiWin}回 / 立直${x.riichi}回`),
-      tile("立直放銃率",pct(x.riichiDeal,x.riichi),`${x.riichiDeal}回 / 立直${x.riichi}回`),
-      tile("ダマ率",pct(x.dama,x.hands),`${x.dama}回 / ${x.hands}局`),
-      tile("ダマ成功率",pct(x.damaWin,x.dama),`${x.damaWin}回 / ダマ${x.dama}回`),
-      tile("ツモ率",pct(x.tsumo,x.agari),`${x.tsumo}回 / 和了${x.agari}回`),
-      tile("ロン率",pct(x.ron,x.agari),`${x.ron}回 / 和了${x.agari}回`),
-      tile("平均立直巡目",x.riichi?(x.turns/x.riichi).toFixed(2)+"巡":"—",`立直${x.riichi}回`),
-      tile("平均和了点",x.agari?comma(x.pts/x.agari)+"点":"—",`和了${x.agari}回`),
-    ].join("");
-    $("stnote").textContent="和了率・放銃率・副露率・立直率・ダマ率は、局数に対する割合。立直成功率・立直放銃率は立直の回数、ダマ成功率はダマの回数、ツモ率・ロン率は和了の回数に対する割合。副露率は、副露した局の割合(1局に何回鳴いても1回。暗槓は含めない)。";
+    $("stgrid").innerHTML=statTiles(x);
+    $("stnote").textContent=STAT_NOTE;
   }
   openDlg();
 }
@@ -718,6 +740,14 @@ function openTeam(i){
   /* 戦績(チーム順位の行と同じ内容) */
   $("thGapD").textContent=gapLabel();
   $("rtb").innerHTML=`<tr><td class="rank">${rankCell(t)}</td>${stats(t,gapCell(t))}</tr>`;
+  /* 詳細成績(メンバーの件数の合計)。集計のあるリーグだけ */
+  const ts=teamStat(S,CUR,LG,t.name);
+  $("secTStat").hidden=!ts;
+  if(ts){
+    $("tstsub").textContent=`メンバー${ts.people}人の合計・${S.leagues[LG].name?S.leagues[LG].name+"・":""}${ts.hands}局を手動で集計`;
+    $("tstgrid").innerHTML=statTiles(ts);
+    $("tstnote").textContent=STAT_NOTE;
+  }
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
 <td class="l" style="font-weight:700">${esc(p.name)}${adjMark(p)}</td>
 <td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
