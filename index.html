@@ -284,6 +284,16 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
 .alink:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
 .amsg{flex-basis:100%;text-align:right;color:var(--minus);min-height:1.2em}
 .amsg:empty{display:none}
+
+/* 個人の成績ダイアログ: 詳細成績(和了率など) */
+.stgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.stgrid:empty{display:none}
+.st{border:1px solid var(--line);border-radius:10px;padding:9px 12px 8px;background:var(--bg)}
+.st .k{font-size:12px;color:var(--muted);font-weight:700}
+.st .v{font-family:"IBM Plex Mono",monospace;font-size:20px;font-weight:600;line-height:1.35;color:var(--ink)}
+.st .c{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stnote{margin:0;font-size:12px;line-height:1.7;color:var(--muted)}
+#tbP .pname{font-weight:700}
 </style>
 </head>
 <body>
@@ -375,7 +385,7 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・メンバーの成績・そのチームを強調した順位の推移が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。2次以降のリーグは、前のリーグの最終結果を最初の点にする。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・メンバーの成績・そのチームを強調した順位の推移が開く。個人順位のプレイヤー名を押すと、その人の戦績と詳細成績(和了率など。手動で集計したリーグだけ)が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。2次以降のリーグは、前のリーグの最終結果を最初の点にする。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 <div class="admin" id="admin">
   <span class="alabel">管理者用</span>
   <input id="apw" class="apw" type="password" placeholder="パスワード" aria-label="管理者用のパスワード" autocomplete="off" aria-describedby="amsg">
@@ -389,6 +399,15 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
 <dialog id="dlg" aria-labelledby="dname">
   <div class="dhead"><div><div class="dscope" id="dscope"></div><h2 id="dname"></h2><div class="dsub" id="dsub"></div></div><button class="close" id="dclose" aria-label="閉じる">×</button></div>
   <div class="dbody">
+    <section class="awards" id="secPRec" aria-labelledby="prech" hidden>
+      <h3 id="prech">戦績 <span>個人順位の行と同じ内容</span></h3>
+      <div class="dtbox"><table class="vs rec"><thead><tr><th style="text-align:center">順位</th><th>合計PT</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>トップ率</th><th>連対率</th><th>ラス回避率</th><th>着順分布</th></tr></thead><tbody id="prtb"></tbody></table></div>
+    </section>
+    <section class="awards" id="secStat" aria-labelledby="sth" hidden>
+      <h3 id="sth">詳細成績 <span id="stsub"></span></h3>
+      <div class="stgrid" id="stgrid"></div>
+      <p class="stnote" id="stnote"></p>
+    </section>
     <section class="awards" id="secRec" aria-labelledby="rech">
       <h3 id="rech">戦績 <span>チーム順位の行と同じ内容</span></h3>
       <div class="dtbox"><table class="vs rec"><thead><tr><th style="text-align:center">順位</th><th>合計PT</th><th id="thGapD">ボーダーとの差</th><th>対局数</th><th>平均PT</th><th>平均順位</th><th>トップ率</th><th>連対率</th><th>ラス回避率</th><th>着順分布</th></tr></thead><tbody id="rtb"></tbody></table></div>
@@ -577,7 +596,7 @@ ${stats(t,gapCell(t))}</tr>
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
 <td class="rank">${rankCell(d)}</td>
-<td class="l name">${esc(d.name)}${adjMark(d)}</td>
+<td class="l name"><button class="pname" data-p="${esc(d.id)}" title="${esc(d.name)} の成績を見る">${esc(d.name)}</button>${adjMark(d)}</td>
 <td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:`<span class="oteam" style="margin:0">${d.team?esc(d.team):"未登録"}</span>`}</td>
 ${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"🀄対局準備中🀄":"該当するプレイヤーがいない")+'</td></tr>';
   }
@@ -590,9 +609,52 @@ $("q").addEventListener("input",render);
 /* チームの成績ダイアログ(メンバーの個人成績) */
 const dlg=$("dlg");
 function openDlg(){ if(!dlg.open)dlg.showModal(); $("dclose").focus({preventScroll:true}); dlg.scrollTop=0 }
+/* ダイアログの中身を、チーム用(team=true)か個人用に切り替える */
+function dlgMode(team){
+  ["secRec","secMem"].forEach(id=>$(id).hidden=!team);
+  ["secPRec","secStat"].forEach(id=>$(id).hidden=team);
+  if(!team)$("secChart").hidden=true;
+}
+/* 個人の成績ダイアログ。戦績(個人順位の行と同じ内容)と、詳細成績(和了率など。手動で集計したCSV YYYYMMXX-stats1.csv があるリーグだけ) */
+const pct=(a,b)=>b?(a/b*100).toFixed(1)+"%":"—";
+const comma=v=>String(Math.round(v)).replace(/\B(?=(\d{3})+$)/g,",");
+function openPlayer(id){
+  const d=D.find(x=>x.id===id); if(!d)return;
+  const S=SEASONS.get(CUR),lg=S.leagues[LG].name;
+  dlgMode(false);
+  $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+lg:""} 個人成績`;
+  $("dname").textContent=d.name;
+  $("dsub").innerHTML=(d.ti>=0?`<span>チーム <button type="button" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button></span>`:`<span>${d.team?esc(d.team):"チーム未登録"}</span>`)+`<span>個人順位 <b>${d.rank}</b>位</span>`;
+  $("prtb").innerHTML=`<tr><td class="rank">${rankCell(d)}</td>${stats(d)}</tr>`;
+  const st=S.stats&&S.stats[LG],x=st&&st.get(d.id);
+  $("stsub").textContent=x?`${lg?lg+"・":""}${x.hands}局を手動で集計`:"";
+  if(x){
+    const tile=(k,v,c)=>`<div class="st"><div class="k">${k}</div><div class="v">${v}</div><div class="c">${c}</div></div>`;
+    $("stgrid").innerHTML=[
+      tile("和了率",pct(x.agari,x.hands),`${x.agari}回 / ${x.hands}局`),
+      tile("放銃率",pct(x.houju,x.hands),`${x.houju}回 / ${x.hands}局`),
+      tile("副露率",pct(x.furo,x.hands),`${x.furo}局 / ${x.hands}局`),
+      tile("立直率",pct(x.riichi,x.hands),`${x.riichi}回 / ${x.hands}局`),
+      tile("立直成功率",pct(x.riichiWin,x.riichi),`${x.riichiWin}回 / 立直${x.riichi}回`),
+      tile("立直放銃率",pct(x.riichiDeal,x.riichi),`${x.riichiDeal}回 / 立直${x.riichi}回`),
+      tile("ダマ率",pct(x.dama,x.hands),`${x.dama}回 / ${x.hands}局`),
+      tile("ダマ成功率",pct(x.damaWin,x.dama),`${x.damaWin}回 / ダマ${x.dama}回`),
+      tile("ツモ率",pct(x.tsumo,x.agari),`${x.tsumo}回 / 和了${x.agari}回`),
+      tile("ロン率",pct(x.ron,x.agari),`${x.ron}回 / 和了${x.agari}回`),
+      tile("平均立直巡目",x.riichi?(x.turns/x.riichi).toFixed(2)+"巡":"—",`立直${x.riichi}回`),
+      tile("平均和了点",x.agari?comma(x.pts/x.agari)+"点":"—",`和了${x.agari}回`),
+    ].join("");
+    $("stnote").textContent="和了率・放銃率・副露率・立直率・ダマ率は、局数に対する割合。立直成功率・立直放銃率は立直の回数、ダマ成功率はダマの回数、ツモ率・ロン率は和了の回数に対する割合。副露率は、副露した局の割合(1局に何回鳴いても1回。暗槓は含めない)。";
+  }else{
+    $("stgrid").innerHTML="";
+    $("stnote").textContent=st?"このプレイヤーの詳細成績(和了率など)は、集計されていない。":"このリーグの詳細成績(和了率など)は、まだ集計されていない。";
+  }
+  openDlg();
+}
 function openTeam(i){
   const t=T[i];
   const S=SEASONS.get(CUR);
+  dlgMode(true);
   $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+S.leagues[LG].name:""} チーム成績`;
   $("dname").textContent=t.name;
   $("dsub").innerHTML=`<span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG?`<span>持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
@@ -618,6 +680,7 @@ function openTeam(i){
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-t]"); if(b){openTeam(+b.dataset.t);return}
+  const pb=e.target.closest("[data-p]"); if(pb){openPlayer(pb.dataset.p);return}
   const l=e.target.closest("[data-l]"); if(l){load(CUR,null,+l.dataset.l);return}
   const d=e.target.closest("[data-d]"); if(d){SDAY=d.dataset.d;renderSched()}
 });
@@ -969,6 +1032,24 @@ function toSchedule(text){
   if(!M.size) throw new Error("スケジュールにチームの入った行がない。");
   return M;
 }
+/* 詳細成績のCSV(YYYYMMXX-stats1.csv)。1行が1人。プレイヤーIDで対局記録と結び付ける。
+   列: プレイヤーID,プレイヤー名,局数,和了数,放銃数,副露数,立直数,立直成功数,立直放銃数,ツモ数,ロン数,ダマ数,ダマ成功数,立直巡目数,和了点数
+   プレイヤーID → 件数 の Map を返す */
+function toStats(text){
+  const rows=parseCSV(text.replace(/^﻿/,""));
+  if(rows.length<2) throw new Error("詳細成績にデータ行がない。");
+  const h=rows[0].map(s=>s.trim()),ci=h.indexOf("プレイヤーID");
+  if(ci<0||h.indexOf("局数")<0) throw new Error("詳細成績に「プレイヤーID」「局数」の列がない。");
+  const COL={hands:"局数",agari:"和了数",houju:"放銃数",furo:"副露数",riichi:"立直数",riichiWin:"立直成功数",riichiDeal:"立直放銃数",tsumo:"ツモ数",ron:"ロン数",dama:"ダマ数",damaWin:"ダマ成功数",turns:"立直巡目数",pts:"和了点数"};
+  const M=new Map();
+  rows.slice(1).forEach(r=>{
+    const id=(r[ci]||"").trim(); if(!id)return;
+    const x={}; for(const [k,n] of Object.entries(COL)){const c=h.indexOf(n);x[k]=c>=0?parseFloat(r[c])||0:0}
+    M.set(id,x);
+  });
+  if(!M.size) throw new Error("詳細成績にプレイヤーIDの入った行がない。");
+  return M;
+}
 function decode(buf){
   try{return new TextDecoder("utf-8",{fatal:true}).decode(buf)}catch(e){return new TextDecoder("shift_jis").decode(buf)}
 }
@@ -1038,7 +1119,15 @@ async function loadSeason(key){
   if(t.ok) try{roster=toRoster(decode(await t.arrayBuffer()))}
   catch(err){console.warn(key,err);BAD.push(`${key}-master.csv(${err.message})`)}
   const leagues=roster&&roster.leagues.length?roster.leagues:[{name:"",teams:0,carry:0}];
-  const [sc,...res]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`))]);
+  const [sc,...both]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`)),...leagues.map((_,k)=>get(`${key}-stats${k+1}.csv`))]);
+  const res=both.slice(0,leagues.length),sres=both.slice(leagues.length);
+  /* 詳細成績(和了率など)。手動で集計したCSV。無いリーグは null */
+  const stats=[];
+  for(let k=0;k<leagues.length;k++){
+    stats[k]=null;
+    if(sres[k].ok) try{stats[k]=toStats(decode(await sres[k].arrayBuffer()))}
+    catch(err){console.warn(key,err);BAD.push(`${key}-stats${k+1}.csv(${err.message})`)}
+  }
   let sched=null;
   if(sc.ok) try{sched=toSchedule(decode(await sc.arrayBuffer()))}
   catch(err){console.warn(key,err);BAD.push(`${key}-schedule.csv(${err.message})`)}
@@ -1049,7 +1138,7 @@ async function loadSeason(key){
     catch(err){console.warn(key,err);BAD.push(`${key}-games${k+1}.csv(${err.message})`)}
     files[k]=g.filter(x=>{const id=x[2]||x[0]+"/"+x[1].map(v=>v[0]).join(); if(seen.has(id))return false; seen.add(id);return true});
   }
-  return roster||files.some(g=>g.length)?{roster,leagues,files,sched,L:[]}:null;
+  return roster||files.some(g=>g.length)?{roster,leagues,files,sched,stats,L:[]}:null;
 }
 (async()=>{
   const listed=await listByApi();
