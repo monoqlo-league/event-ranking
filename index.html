@@ -288,10 +288,39 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
 /* 個人の成績ダイアログ: 詳細成績(和了率など) */
 .stgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
 .stgrid:empty{display:none}
-.st{border:1px solid var(--line);border-radius:10px;padding:9px 12px 8px;background:var(--bg)}
+.st{all:unset;box-sizing:border-box;display:block;cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:9px 12px 8px;background:var(--bg);min-width:0}
+.st>span{display:block}
+.st:hover{border-color:var(--accent)}
+.st:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.st[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.st[aria-pressed="true"] .k{color:var(--accent)}
 .st .k{font-size:12px;color:var(--muted);font-weight:700}
 .st .v{font-family:"IBM Plex Mono",monospace;font-size:20px;font-weight:600;line-height:1.35;color:var(--ink)}
 .st .c{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 項目のランキング */
+.strank{border:1px solid var(--line);border-radius:10px;padding:10px 12px 6px;min-width:0}
+.vs.srt{min-width:0;width:100%}
+.srt td.v small{display:none}
+@media (max-width:520px){
+  .strank{padding:8px 6px 4px}
+  .srt td,.srt th{padding:6px 5px}
+  .srt td.l,.srt td.l small,.srt td.l .pname{white-space:normal;overflow-wrap:anywhere}
+  .srt td.rank,.srt th:first-child{width:30px;padding-left:2px;padding-right:2px}
+  .srt .c{display:none}                         /* 件数の列は出さず、値の下に小さく出す */
+  .srt td.v small{display:block;font-size:10.5px;font-weight:400;color:var(--muted);white-space:nowrap}
+}
+.srh{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:4px}
+.srh b{font-size:14px}
+.srh span{font-size:12px;color:var(--muted)}
+.srclose{all:unset;cursor:pointer;margin-left:auto;font-size:12px;font-weight:700;color:var(--muted);border-bottom:1px dashed var(--muted)}
+.srclose:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.srclose:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.srt td.l small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.srt td.v{font-weight:600}
+.srt td.c{font-size:12px;color:var(--muted);white-space:nowrap}
+.srt tr.me td{background:var(--accent-soft)}
+.srt tr.me td.rank,.srt tr.me .pname{color:var(--accent)}
+.srt td,.srt th{padding:6px 8px}
 .stnote{margin:0;font-size:12px;line-height:1.7;color:var(--muted)}
 #tbP .pname{font-weight:700}
 </style>
@@ -406,6 +435,7 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
     <section class="awards" id="secStat" aria-labelledby="sth" hidden>
       <h3 id="sth">詳細成績 <span id="stsub"></span></h3>
       <div class="stgrid" id="stgrid"></div>
+      <div class="strank" id="strank" hidden></div>
       <p class="stnote" id="stnote"></p>
     </section>
     <section class="awards" id="secRec" aria-labelledby="rech">
@@ -415,6 +445,7 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
     <section class="awards" id="secTStat" aria-labelledby="tsth" hidden>
       <h3 id="tsth">詳細成績 <span id="tstsub"></span></h3>
       <div class="stgrid" id="tstgrid"></div>
+      <div class="strank" id="tstrank" hidden></div>
       <p class="stnote" id="tstnote"></p>
     </section>
     <section class="awards" id="secMem" aria-labelledby="memh">
@@ -687,24 +718,48 @@ function teamStat(S,key,lg,team){
   }
   return sum&&{...sum,people:n};
 }
-const STAT_NOTE="和了率・放銃率・副露率・立直率・ダマ率は、局数に対する割合。立直成功率・立直放銃率は立直の回数、ダマ成功率はダマの回数、ツモ率・ロン率は和了の回数に対する割合。副露率は、副露した局の割合(1局に何回鳴いても1回。暗槓は含めない)。";
-/* 詳細成績のタイル(個人・チーム共通)。x=件数 */
-function statTiles(x){
-  const tile=(k,v,c)=>`<div class="st"><div class="k">${k}</div><div class="v">${v}</div><div class="c">${c}</div></div>`;
-  return [
-    tile("和了率",pct(x.agari,x.hands),`${x.agari}回 / ${x.hands}局`),
-    tile("放銃率",pct(x.houju,x.hands),`${x.houju}回 / ${x.hands}局`),
-    tile("副露率",pct(x.furo,x.hands),`${x.furo}局 / ${x.hands}局`),
-    tile("立直率",pct(x.riichi,x.hands),`${x.riichi}回 / ${x.hands}局`),
-    tile("立直成功率",pct(x.riichiWin,x.riichi),`${x.riichiWin}回 / 立直${x.riichi}回`),
-    tile("立直放銃率",pct(x.riichiDeal,x.riichi),`${x.riichiDeal}回 / 立直${x.riichi}回`),
-    tile("ダマ率",pct(x.dama,x.hands),`${x.dama}回 / ${x.hands}局`),
-    tile("ダマ成功率",pct(x.damaWin,x.dama),`${x.damaWin}回 / ダマ${x.dama}回`),
-    tile("ツモ率",pct(x.tsumo,x.agari),`${x.tsumo}回 / 和了${x.agari}回`),
-    tile("ロン率",pct(x.ron,x.agari),`${x.ron}回 / 和了${x.agari}回`),
-    tile("平均立直巡目",x.riichi?(x.turns/x.riichi).toFixed(2)+"巡":"—",`立直${x.riichi}回`),
-    tile("平均和了点",x.agari?comma(x.pts/x.agari)+"点":"—",`和了${x.agari}回`),
-  ].join("");
+const STAT_NOTE="項目を押すと、その項目のランキングが下に出る。和了率・放銃率・副露率・立直率・ダマ率は、局数に対する割合。立直成功率・立直放銃率は立直の回数、ダマ成功率はダマの回数、ツモ率・ロン率は和了の回数に対する割合。副露率は、副露した局の割合(1局に何回鳴いても1回。暗槓は含めない)。";
+/* 詳細成績の項目。val=並べ替えに使う値(割る数が0なら null)、show=表示、sub=もとの件数、asc=ランキングで小さいほうを上にする */
+const ratio=(a,b)=>b?a/b:null;
+const STAT_DEFS=[
+  {k:"agari",label:"和了率",val:x=>ratio(x.agari,x.hands),show:x=>pct(x.agari,x.hands),sub:x=>`${x.agari}回 / ${x.hands}局`},
+  {k:"houju",label:"放銃率",val:x=>ratio(x.houju,x.hands),show:x=>pct(x.houju,x.hands),sub:x=>`${x.houju}回 / ${x.hands}局`,asc:true},
+  {k:"furo",label:"副露率",val:x=>ratio(x.furo,x.hands),show:x=>pct(x.furo,x.hands),sub:x=>`${x.furo}局 / ${x.hands}局`},
+  {k:"riichi",label:"立直率",val:x=>ratio(x.riichi,x.hands),show:x=>pct(x.riichi,x.hands),sub:x=>`${x.riichi}回 / ${x.hands}局`},
+  {k:"riichiWin",label:"立直成功率",val:x=>ratio(x.riichiWin,x.riichi),show:x=>pct(x.riichiWin,x.riichi),sub:x=>`${x.riichiWin}回 / 立直${x.riichi}回`},
+  {k:"riichiDeal",label:"立直放銃率",val:x=>ratio(x.riichiDeal,x.riichi),show:x=>pct(x.riichiDeal,x.riichi),sub:x=>`${x.riichiDeal}回 / 立直${x.riichi}回`,asc:true},
+  {k:"dama",label:"ダマ率",val:x=>ratio(x.dama,x.hands),show:x=>pct(x.dama,x.hands),sub:x=>`${x.dama}回 / ${x.hands}局`},
+  {k:"damaWin",label:"ダマ成功率",val:x=>ratio(x.damaWin,x.dama),show:x=>pct(x.damaWin,x.dama),sub:x=>`${x.damaWin}回 / ダマ${x.dama}回`},
+  {k:"tsumo",label:"ツモ率",val:x=>ratio(x.tsumo,x.agari),show:x=>pct(x.tsumo,x.agari),sub:x=>`${x.tsumo}回 / 和了${x.agari}回`},
+  {k:"ron",label:"ロン率",val:x=>ratio(x.ron,x.agari),show:x=>pct(x.ron,x.agari),sub:x=>`${x.ron}回 / 和了${x.agari}回`},
+  {k:"turn",label:"平均立直巡目",val:x=>ratio(x.turns,x.riichi),show:x=>x.riichi?(x.turns/x.riichi).toFixed(2)+"巡":"—",sub:x=>`立直${x.riichi}回`,asc:true,word:"早い順"},
+  {k:"avg",label:"平均和了点",val:x=>ratio(x.pts,x.agari),show:x=>x.agari?comma(x.pts/x.agari)+"点":"—",sub:x=>`和了${x.agari}回`},
+];
+/* 詳細成績のタイル(個人・チーム共通)。x=件数、sel=ランキングを開いている項目。タイルを押すと、その項目のランキングが下に出る */
+function statTiles(x,sel){
+  return STAT_DEFS.map(d=>`<button type="button" class="st" data-st="${d.k}" aria-pressed="${d.k===sel}" title="${d.label}のランキングを見る"><span class="k">${d.label}</span><span class="v">${d.show(x)}</span><span class="c">${d.sub(x)}</span></button>`).join("");
+}
+/* 項目 key のランキング。team=true ならチーム、false なら個人(このリーグで対局のある人)。
+   値のない人(割る数が0)は、順位を付けずに最後に並べる。同じ値は同じ順位 */
+let STATSEL={p:null,t:null},DLGP=null,DLGT=null;      // 開いているランキングの項目(個人・チーム)と、ウィンドウに出している人・チーム
+function statRanking(team,key){
+  const S=SEASONS.get(CUR),d=STAT_DEFS.find(x=>x.k===key); if(!d)return "";
+  const rows=(team?T.map(t=>({name:t.name,sub:"",me:t.i===DLGT,btn:`data-t="${t.i}"`,x:teamStat(S,CUR,LG,t.name)}))
+                  :D.map(p=>({name:p.name,sub:p.team,me:p.id===DLGP,btn:`data-p="${esc(p.id)}"`,x:fixedStat(CUR,LG,p.id)})))
+    .filter(r=>r.x).map(r=>({...r,v:d.val(r.x)}));
+  const has=rows.filter(r=>r.v!=null).sort((a,b)=>(d.asc?a.v-b.v:b.v-a.v)||a.name.localeCompare(b.name,"ja")),none=rows.filter(r=>r.v==null);
+  const same=(a,b)=>d.show(a.x)===d.show(b.x)&&Math.abs(a.v-b.v)<1e-12;
+  let rank=0;
+  const tr=(r,i,rk)=>`<tr class="${r.me?"me":""}"><td class="rank">${rk}</td><td class="l"><button type="button" class="pname" ${r.btn}>${esc(r.name)}</button>${r.sub?`<small>${esc(r.sub)}</small>`:""}</td><td class="num v">${d.show(r.x)}<small>${d.sub(r.x)}</small></td><td class="num c">${d.sub(r.x)}</td></tr>`;
+  return `<div class="srh"><b>${d.label}ランキング</b><span>${d.word||(d.asc?"低い順":"高い順")}・${rows.length}${team?"チーム":"人"}</span><button type="button" class="srclose" data-stclose aria-label="ランキングを閉じる">閉じる</button></div>
+<div class="dtbox"><table class="vs srt"><thead><tr><th style="text-align:center">順位</th><th class="l">${team?"チーム":"プレイヤー"}</th><th>${d.label}</th><th class="c">件数</th></tr></thead><tbody>${
+  has.map((r,i)=>{if(!i||!same(r,has[i-1]))rank=i+1;return tr(r,i,rank)}).join("")+none.map((r,i)=>tr(r,i,"—")).join("")}</tbody></table></div>`;
+}
+/* ランキングの欄を、いま選んでいる項目に合わせて描き直す */
+function showRanking(team){
+  const key=team?STATSEL.t:STATSEL.p,box=$(team?"tstrank":"strank"),grid=$(team?"tstgrid":"stgrid");
+  grid.querySelectorAll(".st").forEach(b=>b.setAttribute("aria-pressed",b.dataset.st===key));
+  box.hidden=!key; box.innerHTML=key?statRanking(team,key):"";
 }
 function fixedStat(key,lg,id){
   const a=((FIXED_STATS[key]||[])[lg]||{})[id];
@@ -716,6 +771,7 @@ const comma=v=>String(Math.round(v)).replace(/\B(?=(\d{3})+$)/g,",");
 function openPlayer(id){
   const d=D.find(x=>x.id===id); if(!d)return;
   const S=SEASONS.get(CUR),lg=S.leagues[LG].name;
+  DLGP=id;
   dlgMode(false);
   $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+lg:""} 個人成績`;
   $("dname").textContent=d.name;
@@ -725,14 +781,16 @@ function openPlayer(id){
   $("secStat").hidden=!x;
   if(x){
     $("stsub").textContent=`${lg?lg+"・":""}${x.hands}局を手動で集計`;
-    $("stgrid").innerHTML=statTiles(x);
+    $("stgrid").innerHTML=statTiles(x,STATSEL.p);
     $("stnote").textContent=STAT_NOTE;
+    showRanking(false);
   }
   openDlg();
 }
 function openTeam(i){
   const t=T[i];
   const S=SEASONS.get(CUR);
+  DLGT=i;
   dlgMode(true);
   $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+S.leagues[LG].name:""} チーム成績`;
   $("dname").textContent=t.name;
@@ -745,8 +803,9 @@ function openTeam(i){
   $("secTStat").hidden=!ts;
   if(ts){
     $("tstsub").textContent=`メンバー${ts.people}人の合計・${S.leagues[LG].name?S.leagues[LG].name+"・":""}${ts.hands}局を手動で集計`;
-    $("tstgrid").innerHTML=statTiles(ts);
+    $("tstgrid").innerHTML=statTiles(ts,STATSEL.t);
     $("tstnote").textContent=STAT_NOTE;
+    showRanking(true);
   }
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
 <td class="l" style="font-weight:700">${esc(p.name)}${adjMark(p)}</td>
@@ -768,10 +827,15 @@ function openTeam(i){
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-t]"); if(b){openTeam(+b.dataset.t);return}
   const pb=e.target.closest("[data-p]"); if(pb){openPlayer(pb.dataset.p);return}
+  /* 詳細成績のタイル: 押した項目のランキングを開く。開いている項目をもう一度押すと閉じる */
+  const sb=e.target.closest("[data-st]"); if(sb){const team=!!sb.closest("#secTStat"),w=team?"t":"p";STATSEL[w]=STATSEL[w]===sb.dataset.st?null:sb.dataset.st;showRanking(team);
+    if(STATSEL[w])$(team?"tstrank":"strank").scrollIntoView({block:"nearest",inline:"nearest",behavior:"smooth"});return}
+  const sc=e.target.closest("[data-stclose]"); if(sc){const team=!!sc.closest("#secTStat");STATSEL[team?"t":"p"]=null;showRanking(team);return}
   const l=e.target.closest("[data-l]"); if(l){load(CUR,null,+l.dataset.l);return}
   const d=e.target.closest("[data-d]"); if(d){SDAY=d.dataset.d;renderSched()}
 });
 $("dclose").addEventListener("click",()=>dlg.close());
+dlg.addEventListener("close",()=>{STATSEL={p:null,t:null}});      // ウィンドウを閉じたら、ランキングも閉じた状態に戻す
 dlg.addEventListener("click",e=>{if(e.target===dlg)dlg.close()});
 
 
