@@ -926,7 +926,8 @@ function chartMarkup(H0,hi,W){
   for(let i=0;i<m;i++){
     g+=`<line class="cgrid" x1="${X(i)}" y1="${top-8}" x2="${X(i)}" y2="${Y(n)+8}"/>`;
     if(lab0&&i===0) g+=`<text class="cax" x="${x0}" y="${Y(n)+28}" text-anchor="start">${esc(lab0)}</text>`;
-    else if(((i-off)%step===0||i===m-1&&(m-1-off)%step>=step/2)&&X(i)-18>end0) g+=`<text class="cax" x="${X(i)}" y="${Y(n)+28}" text-anchor="middle">${esc(dayLab(H0,i))}</text>`;
+    /* いちばん右(最新の開催日)には、かならず日付を出す。ほかの目盛りは間引き、右端の日付に重なるものは出さない */
+    else if(i===m-1||(i-off)%step===0&&X(i)-18>end0&&X(m-1)-X(i)>=44) g+=`<text class="cax" x="${X(i)}" y="${Y(n)+28}" text-anchor="middle">${esc(dayLab(H0,i))}</text>`;
   }
   for(let r=1;r<=n;r++) g+=`<text class="cax" x="${L-14}" y="${Y(r)+4}" text-anchor="end">${r}</text>`;
   const order=T.map(t=>t.i).filter(i=>i!==hi).concat(hi);          // 強調する線を最後(いちばん上)に描く
