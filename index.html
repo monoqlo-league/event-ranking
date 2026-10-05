@@ -335,6 +335,7 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
   <div class="eyebrow">MONOQLO麻雀部</div>
   <h1 id="ttl">チーム戦ランキング</h1>
   <div class="meta" id="meta"><span>読み込み中…</span></div>
+  <div class="meta" id="meta2" hidden></div>
   </div>
   </div>
 </header>
@@ -541,6 +542,36 @@ const carryWord=c=>c>=100?"全部":c===50?"半分":c>0?c+"%":"なし";
 function ymLabel(k){return `${k.slice(0,4)}年${+k.slice(4,6)}月`}
 function evTitle(k){const S=SEASONS.get(k);return S&&S.roster&&S.roster.title||""}
 function evName(k){return evTitle(k)||`${ymLabel(k)} チーム戦`}
+/* ---------- 最終更新日時 ----------
+   データ用リポジトリで、表示しているリーグの対局記録(YYYYMMXX-games1.csv など)が最後に更新された日時(GitHubの記録)を出す。
+   GitHubのAPIが使えないとき(回数制限・手元での確認など)は、データに入っている最後の対局の終了時刻を「最終対局」として出す。
+   対局記録がまだないリーグには出さない。 */
+const fmtDT=d=>`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+const UPD=new Map();                                  // CSVの名前 → 更新日時を取る約束(同じものを何度も取りに行かない)
+function updatedAt(name){
+  if(!REPO_OWNER) return Promise.resolve(null);
+  if(!UPD.has(name)) UPD.set(name,(async()=>{
+    const key=`monoqlo-event-upd:${name}`;
+    try{const c=JSON.parse(sessionStorage.getItem(key)||"null"); if(c&&c.t&&Date.now()-c.at<5*60e3) return new Date(c.t)}catch(e){}   // 5分は覚えておく
+    try{
+      const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${DATA_REPO}/commits?per_page=1&path=${encodeURIComponent(DATA_DIR+name)}`);
+      if(!r.ok) return null;
+      const j=await r.json(),t=j[0]&&j[0].commit&&j[0].commit.committer&&j[0].commit.committer.date||null;
+      if(!t||isNaN(new Date(t))) return null;
+      try{sessionStorage.setItem(key,JSON.stringify({t,at:Date.now()}))}catch(e){}
+      return new Date(t);
+    }catch(e){return null}
+  })());
+  return UPD.get(name);
+}
+function showUpdated(view,lg,games){
+  const el=$("meta2");
+  if(!games.length){el.innerHTML="";el.hidden=true;return}
+  const lastEnd=games.reduce((x,g)=>{const t=g[3]||g[0];return t>x?t:x},"");                 // 最後の対局の終了時刻
+  const fallback=lastEnd?`<span>最終対局 <b>${esc(lastEnd.slice(0,16).replace(/-/g,"/"))}</b></span>`:"";
+  el.innerHTML=fallback;el.hidden=!fallback;
+  updatedAt(`${view}-games${lg+1}.csv`).then(d=>{ if(d&&CUR===view&&LG===lg){el.innerHTML=`<span>最終更新 <b>${fmtDT(d)}</b></span>`;el.hidden=false} });
+}
 function load(view,tab,lg){
   CUR=view; if(tab)TAB=tab;
   const S=SEASONS.get(view),n=S.leagues.length;
@@ -563,6 +594,7 @@ function load(view,tab,lg){
     (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${GAMES.length}</b></span>`+
     (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
     (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
+  showUpdated(view,LG,GAMES);
   const note=!S.roster?`チーム表(${view}-master.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
     :PENDING?`${S.leagues[LG-1].name}がまだ終了していないため、${lgi.name}に進むチームは決まっていない。`
     :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の${X.prov?"今の":""}上位${T.length}チームを、進出するチームとして表示している。順位は、持ち越したPTの順。`
@@ -1123,7 +1155,8 @@ function toGames(text){
       seats.push([m?m[1]:raw,m?cleanName(m[2]):raw,pt,isNaN(sc)?null:sc]);
     }
     const lk=col("牌譜リンク");
-    games.push([(r[col("開始時間")]||"").trim(),seats,lk>=0?(r[lk]||"").trim():""]);
+    const ce=col("終了時間");
+    games.push([(r[col("開始時間")]||"").trim(),seats,lk>=0?(r[lk]||"").trim():"",ce>=0?(r[ce]||"").trim():""]);
   });
   if(!games.length) throw new Error("集計できる対局がない。");
   return games;
