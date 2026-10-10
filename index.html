@@ -565,6 +565,8 @@ function evName(k){return evTitle(k)||`${ymLabel(k)} チーム戦`}
 const fmtDT=d=>`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 const UPD=new Map();                                  // CSVの名前 → 更新日時を取る約束(同じものを何度も取りに行かない)
 function updatedAt(name){
+  const ix=INDEX&&INDEX.files[name];
+  if(ix&&ix.updated&&!isNaN(new Date(ix.updated))) return Promise.resolve(new Date(ix.updated));     // index.json にあれば、API を使わない
   if(!REPO_OWNER) return Promise.resolve(null);
   if(!UPD.has(name)) UPD.set(name,(async()=>{
     const key=`monoqlo-event-upd:${name}`;
@@ -871,6 +873,17 @@ function openPlayer(id){
   $("dname").textContent=d.name;
   $("dsub").innerHTML=(d.ti>=0&&!ALL?`<span>チーム <button type="button" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button></span>`:`<span>${d.team?esc(d.team):"チーム未登録"}</span>`)+`<span>個人順位 <b>${d.rank}</b>位</span>`;
   $("prtb").innerHTML=`<tr><td class="rank">${rankCell(d)}</td>${stats(d)}</tr>`;
+  fillPlayerStat(S,d,lg);
+  openDlg();
+}
+/* 個人の詳細成績の欄。まだ読んでいなければ「読み込み中」と出し、読めたらこの欄だけ描き直す */
+function fillPlayerStat(S,d,lg){
+  if(S.summ===undefined){
+    $("secStat").hidden=false;$("stsub").textContent="読み込み中…";$("stgrid").innerHTML="";$("strank").hidden=true;$("stnote").textContent="";
+    const view=CUR,lgNow=LG,id=d.id;
+    loadSumm(S).then(()=>{if(dlg.open&&CUR===view&&LG===lgNow&&DLGP===id&&!$("secPRec").hidden)fillPlayerStat(S,d,lg)});
+    return;
+  }
   const x=playerStat(S,LG,d.id);
   $("secStat").hidden=!x;
   if(x){
@@ -879,7 +892,23 @@ function openPlayer(id){
     $("stnote").textContent=STAT_NOTE;
     showRanking(false);
   }
-  openDlg();
+}
+/* チームの詳細成績の欄。まだ読んでいなければ「読み込み中」と出し、読めたらこの欄だけ描き直す */
+function fillTeamStat(S,t){
+  if(S.summ===undefined){
+    $("secTStat").hidden=false;$("tstsub").textContent="読み込み中…";$("tstgrid").innerHTML="";$("tstrank").hidden=true;$("tstnote").textContent="";
+    const view=CUR,lgNow=LG,i=t.i;
+    loadSumm(S).then(()=>{if(dlg.open&&CUR===view&&LG===lgNow&&DLGT===i&&!$("secRec").hidden)fillTeamStat(S,t)});
+    return;
+  }
+  const ts=teamStat(S,LG,t.name);
+  $("secTStat").hidden=!ts;
+  if(ts){
+    $("tstsub").textContent=`メンバー${ts.people}人の合計・`+statScope(S.leagues[LG].name,ts,t.n);
+    $("tstgrid").innerHTML=statTiles(ts,STATSEL.t);
+    $("tstnote").textContent=STAT_NOTE;
+    showRanking(true);
+  }
 }
 function openTeam(i){
   const t=T[i];
@@ -893,14 +922,7 @@ function openTeam(i){
   $("thGapD").textContent=gapLabel();
   $("rtb").innerHTML=`<tr><td class="rank">${rankCell(t)}</td>${stats(t,gapCell(t))}</tr>`;
   /* 詳細成績(メンバーの件数の合計)。集計のあるリーグだけ */
-  const ts=teamStat(S,LG,t.name);
-  $("secTStat").hidden=!ts;
-  if(ts){
-    $("tstsub").textContent=`メンバー${ts.people}人の合計・`+statScope(S.leagues[LG].name,ts,t.n);
-    $("tstgrid").innerHTML=statTiles(ts,STATSEL.t);
-    $("tstnote").textContent=STAT_NOTE;
-    showRanking(true);
-  }
+  fillTeamStat(S,t);
   $("mtb").innerHTML=t.mem.map(k=>{const p=D[k];return `<tr><td class="rank">${p.rank}</td>
 <td class="l" style="font-weight:700">${esc(p.name)}${adjMark(p)}</td>
 <td class="pt ${sign(p.pt)}">${f(p.pt,1)}</td><td class="num">${p.n}</td>
@@ -1307,7 +1329,27 @@ const isKey=s=>/^\d{4}(0[1-9]|1[0-2])(0[1-9]|[1-9]\d)$/.test(s);
 /* 大会のファイルを探す
    1. GitHubのAPIでファイル一覧を取り、YYYYMMXX-master.csv と YYYYMMXX-games1.csv などをすべて拾う
    2. APIが使えないとき(回数制限・手元での確認など)は、来月から過去へ順に、枝番01から確かめる */
+/* ファイル一覧(index.json)。データ用リポジトリの GitHub Actions が、CSVを上げるたびに作り直す。
+   ファイルごとの最終更新日時も入っているので、これが読めれば GitHub の API(1時間60回の制限)を使わない。
+   GitHub Pages には自動の更新が反映されないことがあるため、生ファイル(raw)から先に読む */
+let INDEX=null;
+async function loadIndex(){
+  try{
+    const q=`?t=${Date.now()}`;
+    let r=REPO_OWNER?await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${DATA_REPO}/HEAD/${DATA_DIR}index.json${q}`,{cache:"no-store"}).catch(()=>null):null;
+    if(!r||!r.ok) r=await fetch(DATA_BASE+"index.json"+(REPO_OWNER?q:""),{cache:"no-store"}).catch(()=>null);
+    if(!r||!r.ok) return null;
+    const j=await r.json();
+    return j&&j.files&&typeof j.files==="object"?j:null;
+  }catch(e){return null}
+}
 async function listByApi(){
+  INDEX=await loadIndex();
+  if(INDEX){
+    FILES=new Set(Object.keys(INDEX.files));
+    const keys=[...FILES].map(n=>(n.match(/^(\d{8})-(?:master|games\d)\.csv$/)||[])[1]).filter(k=>k&&isKey(k));
+    if(keys.length) return [...new Set(keys)];
+  }
   if(!REPO_OWNER) return null;
   try{
     /* フォルダの中も含めた一覧(詳細成績のもとは summary フォルダに置くため) */
@@ -1345,16 +1387,13 @@ const BAD=[];
    対局記録はリーグごとのファイル。同じ対局が前のリーグのファイルにもあれば、前のリーグの対局として1回だけ数える
    (雀魂で1つの大会を続けて使うと、あとのリーグの牌譜履歴に前のリーグの対局も入るため) */
 async function loadSeason(key){
-  const get=n=>!FILES||FILES.has(n)?fetchData(n):Promise.resolve({ok:false});
+  const get=n=>!FILES||FILES.has(n)||INDEX&&/-games\d(-summary)?\.csv$/.test(n)?fetchData(n):Promise.resolve({ok:false});
   const t=await get(`${key}-master.csv`);
   let roster=null;
   if(t.ok) try{roster=toRoster(decode(await t.arrayBuffer()))}
   catch(err){console.warn(key,err);BAD.push(`${key}-master.csv(${err.message})`)}
   const leagues=roster&&roster.leagues.length?roster.leagues:[{name:"",teams:0,carry:0}];
-  /* 詳細成績のもとは summary フォルダに置く。無ければリポジトリ直下(以前の置き場所)を探す */
-  const getSumm=async n=>{const r=await get(`summary/${n}`);return r.ok?r:get(n)};
-  const [sc,...both]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`)),...leagues.map((_,k)=>getSumm(`${key}-games${k+1}-summary.csv`))]);
-  const res=both.slice(0,leagues.length),sres=both.slice(leagues.length);
+  const [sc,...res]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`))]);
   let sched=null;
   if(sc.ok) try{sched=toSchedule(decode(await sc.arrayBuffer()))}
   catch(err){console.warn(key,err);BAD.push(`${key}-schedule.csv(${err.message})`)}
@@ -1365,14 +1404,25 @@ async function loadSeason(key){
     catch(err){console.warn(key,err);BAD.push(`${key}-games${k+1}.csv(${err.message})`)}
     files[k]=g.filter(x=>{const id=x[2]||x[0]+"/"+x[1].map(v=>v[0]).join(); if(seen.has(id))return false; seen.add(id);return true});
   }
-  /* 詳細成績(和了率など)。対局記録と同じ名前に -summary を付けたCSV。無いリーグは null */
-  const summ=[];
-  for(let k=0;k<leagues.length;k++){
-    summ[k]=null;
-    if(sres[k].ok&&files[k].length) try{summ[k]=buildSummary(toSummary(decode(await sres[k].arrayBuffer())),files[k])}
-    catch(err){console.warn(key,err);BAD.push(`${key}-games${k+1}-summary.csv(${err.message})`)}
-  }
-  return roster||files.some(g=>g.length)?{roster,leagues,files,sched,summ,L:[]}:null;
+  /* 詳細成績(summ)は、成績のウィンドウを初めて開いたときに読む(loadSumm)。最初の表示を軽くするため */
+  return roster||files.some(g=>g.length)?{key,roster,leagues,files,sched,summ:undefined,L:[]}:null;
+}
+/* 詳細成績(和了率など)を読む。対局記録と同じ名前に -summary を付けたCSV(summary フォルダ、無ければリポジトリ直下)。
+   読み終わると S.summ にリーグごとの集計(無いリーグは null)が入る。同じ大会は1回だけ読む */
+function loadSumm(S){
+  if(!S.summP) S.summP=(async()=>{
+    const get=n=>!FILES||FILES.has(n)||INDEX?fetchData(n):Promise.resolve({ok:false});
+    const getSumm=async n=>{const r=await get(`summary/${n}`);return r.ok?r:get(n)};
+    const res=await Promise.all(S.leagues.map((_,k)=>S.files[k].length?getSumm(`${S.key}-games${k+1}-summary.csv`):Promise.resolve({ok:false})));
+    const summ=[];
+    for(let k=0;k<S.leagues.length;k++){
+      summ[k]=null;
+      if(res[k].ok) try{summ[k]=buildSummary(toSummary(decode(await res[k].arrayBuffer())),S.files[k])}
+      catch(err){console.warn(S.key,err)}
+    }
+    S.summ=summ;
+  })();
+  return S.summP;
 }
 (async()=>{
   const listed=await listByApi();
