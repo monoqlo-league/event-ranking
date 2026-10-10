@@ -711,7 +711,8 @@ function dlgMode(team){
   if(!team)$("secChart").hidden=true;
 }
 /* ---------- 詳細成績(和了率など) ----------
-   牌譜から集計したCSV(対局記録が 20260901-games1.csv なら 20260901-games1-summary.csv)を読んで出す。
+   牌譜から集計したCSV(対局記録が 20260901-games1.csv なら summary/20260901-games1-summary.csv)を読んで出す。
+   summary フォルダに無ければ、リポジトリ直下(以前の置き場所)も探す。
    CSVは、1行が「1対局の1人」。対局記録とは ゲームID=牌譜リンク で結び付け、その対局の中の名前でプレイヤーIDを決める
    (CSVの「内部ID」は、対局記録のプレイヤーIDとは別の番号のため)。リーグごと・プレイヤーごとに足し合わせる。 */
 /* 件数として読む列(ここに無い列は、和了役の回数として扱う) */
@@ -1309,9 +1310,12 @@ const isKey=s=>/^\d{4}(0[1-9]|1[0-2])(0[1-9]|[1-9]\d)$/.test(s);
 async function listByApi(){
   if(!REPO_OWNER) return null;
   try{
-    const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${DATA_REPO}/contents/${DATA_DIR.replace(/\/$/,"")}?t=${Date.now()}`);
+    /* フォルダの中も含めた一覧(詳細成績のもとは summary フォルダに置くため) */
+    const r=await fetch(`https://api.github.com/repos/${REPO_OWNER}/${DATA_REPO}/git/trees/HEAD?recursive=1&t=${Date.now()}`);
     if(!r.ok) return null;
-    FILES=new Set((await r.json()).map(f=>f.name));
+    const j=await r.json(); if(j.truncated||!Array.isArray(j.tree)) return null;
+    const pre=DATA_DIR;
+    FILES=new Set(j.tree.filter(f=>f.type==="blob"&&f.path.startsWith(pre)).map(f=>f.path.slice(pre.length)));
     const keys=[...FILES].map(n=>(n.match(/^(\d{8})-(?:master|games\d)\.csv$/)||[])[1]).filter(k=>k&&isKey(k));
     return [...new Set(keys)];
   }catch(e){return null}
@@ -1347,7 +1351,9 @@ async function loadSeason(key){
   if(t.ok) try{roster=toRoster(decode(await t.arrayBuffer()))}
   catch(err){console.warn(key,err);BAD.push(`${key}-master.csv(${err.message})`)}
   const leagues=roster&&roster.leagues.length?roster.leagues:[{name:"",teams:0,carry:0}];
-  const [sc,...both]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`)),...leagues.map((_,k)=>get(`${key}-games${k+1}-summary.csv`))]);
+  /* 詳細成績のもとは summary フォルダに置く。無ければリポジトリ直下(以前の置き場所)を探す */
+  const getSumm=async n=>{const r=await get(`summary/${n}`);return r.ok?r:get(n)};
+  const [sc,...both]=await Promise.all([get(`${key}-schedule.csv`),...leagues.map((_,k)=>get(`${key}-games${k+1}.csv`)),...leagues.map((_,k)=>getSumm(`${key}-games${k+1}-summary.csv`))]);
   const res=both.slice(0,leagues.length),sres=both.slice(leagues.length);
   let sched=null;
   if(sc.ok) try{sched=toSchedule(decode(await sc.arrayBuffer()))}
