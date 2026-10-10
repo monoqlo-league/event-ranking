@@ -426,7 +426,7 @@ th{z-index:2;border-bottom:0;box-shadow:inset 0 -1px 0 var(--line)}   /* 固定�
   <div class="cteams" id="steams" role="group" aria-label="強調するチーム"></div>
   <div class="srounds" id="srounds"></div>
 </section>
-<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・詳細成績・メンバーの成績・そのチームを強調した順位の推移が開く。個人順位のプレイヤー名を押すと、その人の戦績と詳細成績(和了率など。牌譜から集計したCSVがあるリーグだけ)が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。2次以降のリーグは、前のリーグの最終結果を最初の点にする。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
+<footer>チーム順位は、メンバー全員の合計PTの高い順。「ボーダーとの差」は、通過できるいちばん下の順位のチーム(4チーム通過なら4位)との差。最後のリーグでは「トップとの差」を表示する。チームの対局数・着順はメンバーの成績を足したもの。個人順位は各プレイヤーの合計PTの高い順。見出しの「対局数」「平均PT」「平均順位」「トップ率」「連対率」「ラス回避率」を押すと並べ替えできる(順位列は合計PT順のまま)。チーム名を押すと、そのチームの戦績・詳細成績・メンバーの成績・そのチームを強調した順位の推移が開く。大会のリーグが2つ以上あるときは、最後のリーグの右に「全期間集計」のタブが出る。全リーグの対局をまとめた個人順位で、PTの持ち越しは関係なく、各対局のPTをそのまま足す。個人順位のプレイヤー名を押すと、その人の戦績と詳細成績(和了率など。牌譜から集計したCSVがあるリーグだけ)が開く。順位グラフは、対局記録から開催日ごとのチーム順位を計算して描く。2次以降のリーグは、前のリーグの最終結果を最初の点にする。スケジュールは、選んだ開催日の卓組を、卓ごとに表示する。対局前は対局スケジュールのCSVの組み合わせを席(東南西北)の順に、対局後は対局記録の結果を着順に並べる。リーグが終わったとみなすのは、対局記録の数が、スケジュールにある対局の数に届いたとき。</footer>
 <div class="admin" id="admin">
   <span class="alabel">管理者用</span>
   <input id="apw" class="apw" type="password" placeholder="パスワード" aria-label="管理者用のパスワード" autocomplete="off" aria-describedby="amsg">
@@ -478,7 +478,7 @@ const f=(v,s)=>(v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const r1=v=>Math.round(v*10)/10;
 const sign=v=>v>=0?"plus":"minus";
-let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false,NORANK=false,LG=0,GAMES=[],PENDING=false;
+let D=[],T=[],CUR=null,TAB="team",MONTHS=[],SEASONS=new Map(),KEY={team:"pt",player:"pt"},NOGAMES=false,NORANK=false,LG=0,GAMES=[],PENDING=false,ALL=false;   // ALL=全期間集計のタブ(LG がリーグの数と同じ)
 
 /* 集計。games=対局記録、roster=チーム表(プレイヤーID→{team,name,adj})。チーム表が無ければ roster=null。
    opt.teams = このリーグに出るチーム名の集合(null なら全チーム)
@@ -517,6 +517,11 @@ function compute(games,roster,opt){
    2次以降のリーグに出るのは、前のリーグの上位チーム。PTは、前のリーグの合計に持ち越しの割合を掛けて引き継ぐ */
 function leagueOf(S,k){
   if(S.L[k])return S.L[k];
+  /* 全期間集計(k=リーグの数): 全リーグの対局をまとめた個人成績。PTの持ち越しは使わず、各対局のPTをそのまま足す */
+  if(k===S.leagues.length){
+    const games=S.files.flat(),c=compute(games,S.roster,{adj:true});
+    return S.L[k]={games,players:c.players,teams:c.teams,pending:false,prov:false};
+  }
   const lg=S.leagues[k],games=S.files[k]||[];
   let teams=null,pending=false,prov=false;const carry=new Map(),seed=new Map();
   if(k&&S.roster){
@@ -581,13 +586,20 @@ function showUpdated(view,lg,games){
   const lastEnd=games.reduce((x,g)=>{const t=g[3]||g[0];return t>x?t:x},"");                 // 最後の対局の終了時刻
   const fallback=lastEnd?`<span>最終対局 <b>${esc(lastEnd.slice(0,16).replace(/-/g,"/"))}</b></span>`:"";
   el.innerHTML=fallback;el.hidden=!fallback;
-  updatedAt(`${view}-games${lg+1}.csv`).then(d=>{ if(d&&CUR===view&&LG===lg){el.innerHTML=`<span>最終更新 <b>${fmtDT(d)}</b></span>`;el.hidden=false} });
+  /* 全期間集計(lg=リーグの数)は、対局記録のあるリーグのファイルのうち、いちばん新しい更新日時 */
+  const S=SEASONS.get(view),n=S.leagues.length;
+  const names=lg<n?[`${view}-games${lg+1}.csv`]:S.files.map((g,k)=>g.length?`${view}-games${k+1}.csv`:null).filter(Boolean);
+  Promise.all(names.map(updatedAt)).then(ds=>{
+    const d=ds.every(Boolean)?ds.reduce((x,y)=>y>x?y:x):null;              // 1つでも取れなければ、最終対局のまま
+    if(d&&CUR===view&&LG===lg){el.innerHTML=`<span>最終更新 <b>${fmtDT(d)}</b></span>`;el.hidden=false} });
 }
 function load(view,tab,lg){
   CUR=view; if(tab)TAB=tab;
   const S=SEASONS.get(view),n=S.leagues.length;
-  LG=lg==null?lastLeague(S):Math.max(0,Math.min(n-1,lg));
-  const X=leagueOf(S,LG),lgi=S.leagues[LG],fname=`${view}-games${LG+1}.csv`;
+  LG=lg==null?lastLeague(S):Math.max(0,Math.min(n>1?n:n-1,lg));      // リーグが2つ以上なら、最後のリーグの次(n)が全期間集計
+  ALL=n>1&&LG===n;
+  if(ALL)TAB="player";                                     // 全期間集計は、個人順位だけ
+  const X=leagueOf(S,LG),lgi=ALL?{name:"全期間集計",teams:0,carry:0}:S.leagues[LG],fname=`${view}-games${LG+1}.csv`;
   D=X.players;T=X.teams;GAMES=X.games;NOGAMES=!GAMES.length;PENDING=X.pending;
   /* 対局前は順位を付けない。ただし2次以降のリーグは、進むチームが決まっていれば、持ち越したPTの順で順位を付ける */
   NORANK=NOGAMES&&!(LG&&T.length);
@@ -595,18 +607,20 @@ function load(view,tab,lg){
   const free=D.filter(d=>d.ti<0).length, title=evTitle(view);
   const people=NOGAMES&&S.roster?T.reduce((x,t)=>x+t.mem.length+t.idle.length,0):D.length;
   /* 見出しは 大会名、改行して -リーグ名-。終わったリーグには「終了」の印を重ねる(最後のリーグは「完了」の印) */
-  const stamp=finished(S,LG)===true?(LG===n-1?"完了":"終了"):"";
+  const stamp=!ALL&&finished(S,LG)===true?(LG===n-1?"完了":"終了"):"";
   $("ttl").innerHTML=`<span class="tt">`+(title?`<span>${esc(title)}</span> <span>ランキング</span>`:`<span>${ymLabel(view)}</span> <span>チーム戦ランキング</span>`)+
     (lgi.name?`<span class="tlg">-${esc(lgi.name)}-</span>`:"")+
     (stamp?`<img class="stamp" src="${encodeURIComponent(stamp)}.png" alt="${stamp}" width="180" height="180">`:"")+`</span>`;
   $("lgrow").hidden=n<2;
-  $("lgs").innerHTML=n<2?"":S.leagues.map((l,k)=>`<button class="tab" role="tab" aria-selected="${k===LG}" data-l="${k}">${esc(l.name)}<span>${k?l.teams:S.roster?leagueOf(S,0).teams.length:""}チーム</span></button>`).join("");
+  $("lgs").innerHTML=n<2?"":S.leagues.map((l,k)=>`<button class="tab" role="tab" aria-selected="${k===LG}" data-l="${k}">${esc(l.name)}<span>${k?l.teams:S.roster?leagueOf(S,0).teams.length:""}チーム</span></button>`).join("")+
+    (n<2?"":`<button class="tab" role="tab" aria-selected="${ALL}" data-l="${n}">全期間集計<span>${leagueOf(S,n).players.length}人</span></button>`);
   $("meta").innerHTML=`<span>開催 <b>${ymLabel(view)}</b></span>`+
     (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${GAMES.length}</b></span>`+
-    (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
-    (S.roster&&LG?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
+    (S.roster&&!ALL?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
+    (S.roster&&LG&&!ALL?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
   showUpdated(view,LG,GAMES);
-  const note=!S.roster?`チーム表(${view}-master.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
+  const note=ALL?(NOGAMES?"":`全リーグ(${S.leagues.map(l=>l.name).join("・")})の対局をまとめた個人順位。PTの持ち越しは関係なく、各対局のPTをそのまま足している。`)
+    :!S.roster?`チーム表(${view}-master.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
     :PENDING?`${S.leagues[LG-1].name}がまだ終了していないため、${lgi.name}に進むチームは決まっていない。`
     :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の${X.prov?"今の":""}上位${T.length}チームを、進出するチームとして表示している。順位は、持ち越したPTの順。`
     :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
@@ -618,6 +632,8 @@ function load(view,tab,lg){
   show();
 }
 function show(){
+  if(ALL)TAB="player";
+  ["tabTeam","tabChart","tabSched"].forEach(id=>$(id).hidden=ALL);
   $("tabTeam").setAttribute("aria-selected",TAB==="team");
   $("tabPlayer").setAttribute("aria-selected",TAB==="player");
   $("tabChart").setAttribute("aria-selected",TAB==="chart");
@@ -676,7 +692,7 @@ ${stats(t,gapCell(t))}</tr>
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
 <td class="rank">${rankCell(d)}</td>
 <td class="l name"><button class="pname" data-p="${esc(d.id)}" title="${esc(d.name)} の成績を見る">${esc(d.name)}</button>${adjMark(d)}</td>
-<td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:`<span class="oteam" style="margin:0">${d.team?esc(d.team):"未登録"}</span>`}</td>
+<td class="l">${d.ti>=0&&!ALL?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:`<span class="oteam" style="margin:0">${d.team?esc(d.team):"未登録"}</span>`}</td>
 ${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"🀄対局準備中🀄":"該当するプレイヤーがいない")+'</td></tr>';
   }
 }
@@ -752,10 +768,22 @@ function buildSummary(sm,games){
   return M;
 }
 /* 個人の詳細成績(無ければ null) */
-function playerStat(S,lg,id){const M=S.summ&&S.summ[lg];return M&&M.get(id)||null}
+function playerStat(S,lg,id){const M=summOf(S,lg);return M&&M.get(id)||null}
+/* リーグ lg の詳細成績(プレイヤーID → 件数)。全期間集計(lg=リーグの数)は、集計のあるリーグを足し合わせる */
+function summOf(S,lg){
+  if(!S.summ)return null;
+  if(lg<S.leagues.length)return S.summ[lg]||null;
+  if(!("all" in S.summ)){
+    const parts=S.summ.slice(0,S.leagues.length).filter(Boolean);
+    let M=null;
+    if(parts.length){M=new Map();for(const P of parts)for(const [id,x] of P)M.set(id,addStat(M.get(id)||emptyStat(),x));M.yakuNames=parts[0].yakuNames}
+    S.summ.all=M;
+  }
+  return S.summ.all;
+}
 /* チームの詳細成績。メンバーの件数を足したもの(1人でも集計があれば出す)。無ければ null */
 function teamStat(S,lg,team){
-  if(!S.roster||!S.summ||!S.summ[lg])return null;
+  if(!S.roster||!summOf(S,lg))return null;
   let sum=null,n=0;
   for(const [id,x] of S.roster){
     if(x.team!==team)continue;
@@ -815,7 +843,7 @@ function statRanking(team,key){
 /* 和了役一覧。ウィンドウに出している人(チーム)の、役ごとの和了回数。多い順(同じ回数は、CSVの列の順) */
 function yakuList(team){
   const S=SEASONS.get(CUR),x=team?(DLGT!=null&&T[DLGT]?teamStat(S,LG,T[DLGT].name):null):playerStat(S,LG,DLGP); if(!x)return "";
-  const order=new Map(((S.summ[LG]||{}).yakuNames||[]).map((n,i)=>[n,i])),pos=n=>order.has(n)?order.get(n):1e9;
+  const order=new Map(((summOf(S,LG)||{}).yakuNames||[]).map((n,i)=>[n,i])),pos=n=>order.has(n)?order.get(n):1e9;
   const list=[...x.yaku].sort((a,b)=>b[1]-a[1]||pos(a[0])-pos(b[0]));
   return `<div class="srh"><b>和了役一覧</b><span>多い順・${list.length}種類・和了${x.agari}回</span><button type="button" class="srclose" data-stclose aria-label="和了役一覧を閉じる">閉じる</button></div>
 <div class="dtbox"><table class="vs srt yk"><thead><tr><th class="l">役</th><th>和了回数</th></tr></thead><tbody>${
@@ -835,12 +863,12 @@ const pct=(a,b)=>b?(a/b*100).toFixed(1)+"%":"—";
 const comma=v=>String(Math.round(v)).replace(/\B(?=(\d{3})+$)/g,",");
 function openPlayer(id){
   const d=D.find(x=>x.id===id); if(!d)return;
-  const S=SEASONS.get(CUR),lg=S.leagues[LG].name;
+  const S=SEASONS.get(CUR),lg=ALL?"全期間":S.leagues[LG].name;
   DLGP=id;
   dlgMode(false);
   $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+lg:""} 個人成績`;
   $("dname").textContent=d.name;
-  $("dsub").innerHTML=(d.ti>=0?`<span>チーム <button type="button" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button></span>`:`<span>${d.team?esc(d.team):"チーム未登録"}</span>`)+`<span>個人順位 <b>${d.rank}</b>位</span>`;
+  $("dsub").innerHTML=(d.ti>=0&&!ALL?`<span>チーム <button type="button" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button></span>`:`<span>${d.team?esc(d.team):"チーム未登録"}</span>`)+`<span>個人順位 <b>${d.rank}</b>位</span>`;
   $("prtb").innerHTML=`<tr><td class="rank">${rankCell(d)}</td>${stats(d)}</tr>`;
   const x=playerStat(S,LG,d.id);
   $("secStat").hidden=!x;
