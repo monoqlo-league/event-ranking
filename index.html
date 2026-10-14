@@ -334,6 +334,14 @@ td.name{max-width:none;overflow:visible;text-overflow:clip}
 /* ランキング表は枠の中だけでスクロールし、見出し行は枠の上端に固定する(個人ランキングと同じ)。枠の高さは画面の高さまで */
 .tablebox{overflow:auto;max-height:calc(100vh - 48px);max-height:calc(100dvh - 48px)}
 th{z-index:2;border-bottom:0;box-shadow:inset 0 -1px 0 var(--line)}   /* 固定した見出しの下線は影で引く(枠線だとスクロール中に消えるため) */
+
+.st.top10{border:2px solid var(--good);padding:8px 11px 7px}                  /* 項目ランキングで上位1割(青) */
+.st.top10 .k{color:var(--good)}
+.st.bot10{border:2px solid var(--minus);padding:8px 11px 7px}                 /* 項目ランキングで下位1割(赤) */
+.st.bot10 .k{color:var(--minus)}
+:root{--good:#2459b3}                                                          /* 上位1割の青(個人ランキングと同じ) */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--good:#7fa8f2}}
+:root[data-theme="dark"]{--good:#7fa8f2}
 </style>
 </head>
 <body>
@@ -795,7 +803,7 @@ function teamStat(S,lg,team){
   }
   return sum&&{...sum,people:n};
 }
-const STAT_NOTE="項目を押すと、その項目のランキングが下に出る(和了役一覧は、役ごとの和了回数が出る)。和了率・放銃率・副露率・立直率は、局数に対する割合。立直成功率・立直後放銃率は、立直の回数に対する割合。ツモ率・ロン率・面前和了率・副露和了率は、和了の回数に対する割合。最大スコアは、終局時の持ち点のうち、いちばん大きいもの。ドラの平均枚数は、和了1回あたりの枚数(総ドラは、表ドラ・裏ドラ・赤ドラの合計)。副露率は、副露した局の割合(1局に何回鳴いても1回)。";
+const STAT_NOTE="枠が青い項目は、その項目のランキングで上位1割に入っているもの。枠が赤い項目は、下位1割に入っているもの(値の無い人・チームは数えない)。項目を押すと、その項目のランキングが下に出る(和了役一覧は、役ごとの和了回数が出る)。和了率・放銃率・副露率・立直率は、局数に対する割合。立直成功率・立直後放銃率は、立直の回数に対する割合。ツモ率・ロン率・面前和了率・副露和了率は、和了の回数に対する割合。最大スコアは、終局時の持ち点のうち、いちばん大きいもの。ドラの平均枚数は、和了1回あたりの枚数(総ドラは、表ドラ・裏ドラ・赤ドラの合計)。副露率は、副露した局の割合(1局に何回鳴いても1回)。";
 /* 詳細成績の項目。val=並べ替えに使う値(出せないときは null)、show=表示、sub=もとの件数、asc=ランキングで小さいほうを上にする */
 const ratio=(a,b)=>b?a/b:null;
 const avg2=(a,b,u)=>b?(a/b).toFixed(2)+u:"—";
@@ -824,17 +832,34 @@ const STAT_DEFS=[
   {k:"yaku",label:"和了役一覧",list:true,show:x=>"一覧を見る",sub:x=>`${x.yaku.size}種類 / 和了${x.agari}回`},
 ];
 /* 詳細成績のタイル(個人・チーム共通)。x=件数、sel=下に開いている項目。タイルを押すと、その項目のランキング(和了役一覧は役の一覧)が下に出る */
-function statTiles(x,sel){
-  return STAT_DEFS.map(d=>`<button type="button" class="st${d.list?" list":""}" data-st="${d.k}" aria-pressed="${d.k===sel}" title="${d.label}${d.list?"":"のランキング"}を見る"><span class="k">${d.label}</span><span class="v">${d.show(x)}</span><span class="c">${d.sub(x)}</span></button>`).join("");
+function statTiles(x,sel,team){
+  const rows=statRows(team),me=rows.find(r=>r.me);
+  return STAT_DEFS.map(d=>{const t=me&&!d.list?statTier(rows,d,me):"";return `<button type="button" class="st${d.list?" list":""}${t?" "+t+"10":""}" data-st="${d.k}" aria-pressed="${d.k===sel}" title="${d.label}${d.list?"":"のランキング"}を見る${t==="top"?"(上位1割)":t==="bot"?"(下位1割)":""}"><span class="k">${d.label}</span><span class="v">${d.show(x)}</span><span class="c">${d.sub(x)}</span></button>`}).join("");
+}
+/* ランキングに並ぶ人(チーム)。いまのリーグ(全期間集計)で、詳細成績のある人(チーム) */
+function statRows(team){
+  const S=SEASONS.get(CUR);
+  return (team?T.map(t=>({name:t.name,sub:"",me:t.i===DLGT,btn:`data-t="${t.i}"`,x:teamStat(S,LG,t.name)}))
+              :D.map(p=>({name:p.name,sub:p.team,me:p.id===DLGP,btn:`data-p="${esc(p.id)}"`,x:playerStat(S,LG,p.id)})))
+    .filter(r=>r.x);
+}
+/* その人(チーム)が項目 d のランキングで上位1割("top")・下位1割("bot")に入っているか。どちらでもなければ ""。
+   個人ランキングと同じ決め方。1割の人数は、値のある人数の1割(切り捨て。最低1人)。上位は順位がその人数以内、
+   下位は自分より悪い人がその人数未満。同じ値は同じ扱い。両方に当たるときは上位を優先。2人(チーム)未満なら付けない */
+function statTier(rows,d,me){
+  const L=rows.map(r=>({r,v:d.val(r.x)})).filter(o=>o.v!=null),mine=L.find(o=>o.r===me);
+  if(!mine||L.length<2)return "";
+  const lim=Math.max(1,Math.floor(L.length*0.1)),cmp=(a,b)=>d.asc?a.v-b.v:b.v-a.v;   // 負なら a の方が良い
+  const same=(a,b)=>d.show(a.r.x)===d.show(b.r.x)&&Math.abs(a.v-b.v)<1e-12;
+  const better=L.filter(o=>!same(o,mine)&&cmp(o,mine)<0).length,worse=L.filter(o=>!same(o,mine)&&cmp(o,mine)>0).length;
+  return better+1<=lim?"top":worse<lim?"bot":"";
 }
 /* 項目 key のランキング。team=true ならチーム、false なら個人(このリーグで対局のある人)。
    値のない人(割る数が0)は、順位を付けずに最後に並べる。同じ値は同じ順位 */
 let STATSEL={p:null,t:null},DLGP=null,DLGT=null;      // 下に開いている項目(個人・チーム)と、ウィンドウに出している人・チーム
 function statRanking(team,key){
-  const S=SEASONS.get(CUR),d=STAT_DEFS.find(x=>x.k===key); if(!d)return "";
-  const rows=(team?T.map(t=>({name:t.name,sub:"",me:t.i===DLGT,btn:`data-t="${t.i}"`,x:teamStat(S,LG,t.name)}))
-                  :D.map(p=>({name:p.name,sub:p.team,me:p.id===DLGP,btn:`data-p="${esc(p.id)}"`,x:playerStat(S,LG,p.id)})))
-    .filter(r=>r.x).map(r=>({...r,v:d.val(r.x)}));
+  const d=STAT_DEFS.find(x=>x.k===key); if(!d)return "";
+  const rows=statRows(team).map(r=>({...r,v:d.val(r.x)}));
   const has=rows.filter(r=>r.v!=null).sort((a,b)=>(d.asc?a.v-b.v:b.v-a.v)||a.name.localeCompare(b.name,"ja")),none=rows.filter(r=>r.v==null);
   const same=(a,b)=>d.show(a.x)===d.show(b.x)&&Math.abs(a.v-b.v)<1e-12;
   let rank=0;
@@ -888,7 +913,7 @@ function fillPlayerStat(S,d,lg){
   $("secStat").hidden=!x;
   if(x){
     $("stsub").textContent=statScope(lg,x,d.n);
-    $("stgrid").innerHTML=statTiles(x,STATSEL.p);
+    $("stgrid").innerHTML=statTiles(x,STATSEL.p,false);
     $("stnote").textContent=STAT_NOTE;
     showRanking(false);
   }
@@ -905,7 +930,7 @@ function fillTeamStat(S,t){
   $("secTStat").hidden=!ts;
   if(ts){
     $("tstsub").textContent=`メンバー${ts.people}人の合計・`+statScope(S.leagues[LG].name,ts,t.n);
-    $("tstgrid").innerHTML=statTiles(ts,STATSEL.t);
+    $("tstgrid").innerHTML=statTiles(ts,STATSEL.t,true);
     $("tstnote").textContent=STAT_NOTE;
     showRanking(true);
   }
@@ -1316,21 +1341,8 @@ const DATA_REPO="event-data";
 const DATA_DIR="";
 const REPO_OWNER=location.hostname.endsWith(".github.io")?location.hostname.split(".")[0]:"";
 const DATA_BASE=REPO_OWNER?`${location.origin}/${DATA_REPO}/${DATA_DIR}`:"";  // GitHub Pages以外(手元での確認)では、ページと同じ場所から読む
-/* データ用リポジトリの最新の版(コミットID)。ページを開いたときに GitHub へ1回だけ問い合わせる。
-   版を名指しした生ファイル(raw)は古い内容が返らないので、CSVを上げた直後でもすぐ読める(HEAD の生ファイルは最大5分ほど古いことがある)。
-   問い合わせできないとき(1時間60回の制限・手元での確認など)は null になり、これまでどおり HEAD から読む */
-const HEAD_SHA=REPO_OWNER?fetch(`https://api.github.com/repos/${REPO_OWNER}/${DATA_REPO}/commits/HEAD`,{headers:{Accept:"application/vnd.github.sha"},cache:"no-store"})
-  .then(r=>r.ok?r.text():"").then(s=>(s=s.trim(),/^[0-9a-f]{40}$/.test(s)?s:null)).catch(()=>null):Promise.resolve(null);
-/* 最新の版を名指しして生ファイルを取る。版が分からないときや、つながらないときは null(呼び出し側で従来の読み方に戻る)。
-   404 は「最新の版にそのファイルが無い」ことなので、そのまま返す */
-async function fetchPinned(path){
-  const sha=await HEAD_SHA; if(!sha) return null;
-  const r=await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${DATA_REPO}/${sha}/${path}`).catch(()=>null);
-  return r&&(r.ok||r.status===404)?r:null;
-}
-/* データ用リポジトリのファイルを取る。最新の版を名指しして読む。それができないときは GitHub Pages、そこで見つからなければ GitHubの生ファイル(raw、HEAD)から取る */
+/* データ用リポジトリのファイルを取る。GitHub Pagesで見つからなければ、GitHubの生ファイル(raw)から取る */
 async function fetchData(name){
-  const pin=await fetchPinned(DATA_DIR+name); if(pin) return pin;
   const q=`?t=${Date.now()}`;
   let r=await fetch(DATA_BASE+name+(REPO_OWNER?q:""),{cache:"no-store"}).catch(()=>null);
   if((!r||!r.ok)&&REPO_OWNER) r=await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${DATA_REPO}/HEAD/${DATA_DIR}${name}${q}`,{cache:"no-store"}).catch(()=>null);
@@ -1349,8 +1361,7 @@ let INDEX=null;
 async function loadIndex(){
   try{
     const q=`?t=${Date.now()}`;
-    let r=await fetchPinned(DATA_DIR+"index.json"); if(r&&!r.ok) r=null;
-    if(!r) r=REPO_OWNER?await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${DATA_REPO}/HEAD/${DATA_DIR}index.json${q}`,{cache:"no-store"}).catch(()=>null):null;
+    let r=REPO_OWNER?await fetch(`https://raw.githubusercontent.com/${REPO_OWNER}/${DATA_REPO}/HEAD/${DATA_DIR}index.json${q}`,{cache:"no-store"}).catch(()=>null):null;
     if(!r||!r.ok) r=await fetch(DATA_BASE+"index.json"+(REPO_OWNER?q:""),{cache:"no-store"}).catch(()=>null);
     if(!r||!r.ok) return null;
     const j=await r.json();
