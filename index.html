@@ -613,7 +613,7 @@ function load(view,tab,lg){
   const S=SEASONS.get(view),n=S.leagues.length;
   LG=lg==null?lastLeague(S):Math.max(0,Math.min(n>1?n:n-1,lg));      // リーグが2つ以上なら、最後のリーグの次(n)が全期間集計
   ALL=n>1&&LG===n;
-  if(ALL)TAB="player";                                     // 全期間集計は、個人順位だけ
+  if(ALL&&(TAB==="chart"||TAB==="schedule"))TAB="team";   // 全期間集計は、チーム順位と個人順位だけ(順位グラフ・スケジュールは無い)
   const X=leagueOf(S,LG),lgi=ALL?{name:"全期間集計",teams:0,carry:0}:S.leagues[LG],fname=`${view}-games${LG+1}.csv`;
   D=X.players;T=X.teams;GAMES=X.games;NOGAMES=!GAMES.length;PENDING=X.pending;
   /* 対局前は順位を付けない。ただし2次以降のリーグは、進むチームが決まっていれば、持ち越したPTの順で順位を付ける */
@@ -631,10 +631,10 @@ function load(view,tab,lg){
     (n<2?"":`<button class="tab" role="tab" aria-selected="${ALL}" data-l="${n}">全期間集計<span>${leagueOf(S,n).players.length}人</span></button>`);
   $("meta").innerHTML=`<span>開催 <b>${ymLabel(view)}</b></span>`+
     (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${GAMES.length}</b></span>`+
-    (S.roster&&!ALL?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
+    (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
     (S.roster&&LG&&!ALL?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"");
   showUpdated(view,LG,GAMES);
-  const note=ALL?(NOGAMES?"":`全リーグ(${S.leagues.map(l=>l.name).join("・")})の対局をまとめた個人順位。PTの持ち越しは関係なく、各対局のPTをそのまま足している。`)
+  const note=ALL?(NOGAMES?"":`全リーグ(${S.leagues.map(l=>l.name).join("・")})の対局をまとめた順位。PTの持ち越し(半減など)は使わず、各対局のPTをそのまま足している。チーム順位は、全チームを並べる(勝ち上がれなかったチームは、そのぶん対局数が少ない)。`)
     :!S.roster?`チーム表(${view}-master.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
     :PENDING?`${S.leagues[LG-1].name}がまだ終了していないため、${lgi.name}に進むチームは決まっていない。`
     :NOGAMES&&LG?`${lgi.name}の対局記録(${fname})がまだない。${S.leagues[LG-1].name}の${X.prov?"今の":""}上位${T.length}チームを、進出するチームとして表示している。順位は、持ち越したPTの順。`
@@ -647,8 +647,9 @@ function load(view,tab,lg){
   show();
 }
 function show(){
-  if(ALL)TAB="player";
-  ["tabTeam","tabChart","tabSched"].forEach(id=>$(id).hidden=ALL);
+  if(ALL&&(TAB==="chart"||TAB==="schedule"))TAB="team";
+  ["tabChart","tabSched"].forEach(id=>$(id).hidden=ALL);
+  $("tabTeam").hidden=false;
   $("tabTeam").setAttribute("aria-selected",TAB==="team");
   $("tabPlayer").setAttribute("aria-selected",TAB==="player");
   $("tabChart").setAttribute("aria-selected",TAB==="chart");
@@ -700,14 +701,14 @@ function render(){
 <tr class="trow"><td class="rank">${rankCell(t)}</td>
 <td class="l name"><button class="pname" data-t="${t.i}" title="${esc(t.name)} のメンバーの成績を見る">${esc(t.name)}</button></td>
 ${stats(t,gapCell(t))}</tr>
-<tr class="mem"><td></td><td colspan="10"><div class="mems">${LG?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
+<tr class="mem"><td></td><td colspan="10"><div class="mems">${LG&&!ALL?`<span class="chip idle" title="前のリーグから持ち越したPT"><span>持ち越し</span><b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:""}${t.mem.map(i=>{const p=D[i];return `<span class="chip plain" title="個人${p.rank}位・${p.n}局"><span>${esc(p.name)}</span><b class="${sign(p.pt)}">${f(p.pt,1)}</b></span>`}).join("")}${t.idle.map(n=>`<span class="chip idle"><span>${esc(n)}</span><b>未対局</b></span>`).join("")}</div></td></tr>
 </tbody>${t.rank===cut?cutRow:""}`).join(""):`<tbody><tr><td colspan="11" class="empty">${PENDING?esc(waitWord(S,LG)):NOGAMES&&!q?"🀄対局準備中🀄":S.roster?"該当するチームがない":"チーム表がないため、チーム順位は出せない"}</td></tr></tbody>`);
   }else{
     const L=D.filter(d=>!q||hit(d.name)||hit(d.team)).sort(by(KEY.player));
     $("tbP").innerHTML=L.length?L.map(d=>`<tr class="${d.rank<=3?"top":""}">
 <td class="rank">${rankCell(d)}</td>
 <td class="l name"><button class="pname" data-p="${esc(d.id)}" title="${esc(d.name)} の成績を見る">${esc(d.name)}</button>${adjMark(d)}</td>
-<td class="l">${d.ti>=0&&!ALL?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:`<span class="oteam" style="margin:0">${d.team?esc(d.team):"未登録"}</span>`}</td>
+<td class="l">${d.ti>=0?`<button class="tname" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button>`:`<span class="oteam" style="margin:0">${d.team?esc(d.team):"未登録"}</span>`}</td>
 ${stats(d)}</tr>`).join(""):'<tr><td colspan="11" class="empty">'+(NOGAMES?"🀄対局準備中🀄":"該当するプレイヤーがいない")+'</td></tr>';
   }
 }
@@ -901,7 +902,7 @@ function openPlayer(id){
   dlgMode(false);
   $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+lg:""} 個人成績`;
   $("dname").textContent=d.name;
-  $("dsub").innerHTML=(d.ti>=0&&!ALL?`<span>チーム <button type="button" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button></span>`:`<span>${d.team?esc(d.team):"チーム未登録"}</span>`)+`<span>個人順位 <b>${d.rank}</b>位</span>`;
+  $("dsub").innerHTML=(d.ti>=0?`<span>チーム <button type="button" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button></span>`:`<span>${d.team?esc(d.team):"チーム未登録"}</span>`)+`<span>個人順位 <b>${d.rank}</b>位</span>`;
   $("prtb").innerHTML=`<tr><td class="rank">${rankCell(d)}</td>${stats(d)}</tr>`;
   fillPlayerStat(S,d,lg);
   openDlg();
@@ -934,7 +935,7 @@ function fillTeamStat(S,t){
   const ts=teamStat(S,LG,t.name);
   $("secTStat").hidden=!ts;
   if(ts){
-    $("tstsub").textContent=`メンバー${ts.people}人の合計・`+statScope(S.leagues[LG].name,ts,t.n);
+    $("tstsub").textContent=`メンバー${ts.people}人の合計・`+statScope(ALL?"全期間":S.leagues[LG].name,ts,t.n);
     $("tstgrid").innerHTML=statTiles(ts,STATSEL.t,true);
     $("tstnote").textContent=STAT_NOTE;
     showRanking(true);
@@ -945,9 +946,9 @@ function openTeam(i){
   const S=SEASONS.get(CUR);
   DLGT=i;
   dlgMode(true);
-  $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+S.leagues[LG].name:""} チーム成績`;
+  $("dscope").textContent=`${evName(CUR)}${S.leagues.length>1?" "+(ALL?"全期間集計":S.leagues[LG].name):""} チーム成績`;
   $("dname").textContent=t.name;
-  $("dsub").innerHTML=`<span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG?`<span>持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
+  $("dsub").innerHTML=`<span>メンバー <b>${t.mem.length+t.idle.length}</b>人</span>`+(LG&&!ALL?`<span>持ち越し <b class="${sign(t.carry)}">${f(t.carry,1)}</b></span>`:"");
   /* 戦績(チーム順位の行と同じ内容) */
   $("thGapD").textContent=gapLabel();
   $("rtb").innerHTML=`<tr><td class="rank">${rankCell(t)}</td>${stats(t,gapCell(t))}</tr>`;
@@ -960,7 +961,7 @@ function openTeam(i){
 <td class="num">${p.r.join(" / ")}</td></tr>`}).join("")+
     t.idle.map(n=>`<tr><td class="rank">—</td><td class="l">${esc(n)}</td><td class="num" colspan="5" style="text-align:left;color:var(--muted)">未対局</td></tr>`).join("");
   /* このチームを強調した順位の推移(対局記録がないときは出さない) */
-  const H=rankHistory(S);
+  const H=ALL?null:rankHistory(S);                        // 全期間集計には順位の推移を出さない
   $("secChart").hidden=!H;
   openDlg();
   if(H){
