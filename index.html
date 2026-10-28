@@ -347,6 +347,20 @@ th{z-index:2;border-bottom:0;box-shadow:inset 0 -1px 0 var(--line)}   /* 固定�
 :root{--good:#2459b3}                                                          /* 上位1割の青(個人ランキングと同じ) */
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--good:#7fa8f2}}
 :root[data-theme="dark"]{--good:#7fa8f2}
+.glist{max-height:340px;overflow-y:auto;margin-bottom:20px;border:1px solid var(--line);border-radius:8px}
+.glist .vs th{position:sticky;top:0;background:var(--surface);z-index:1}
+.glist .vs td{padding-top:7px;padding-bottom:7px}
+.glist .vs{min-width:660px}
+.glist .gdate{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);vertical-align:top}
+.glist .gcell{white-space:normal;vertical-align:top;line-height:1.4;border-left:1px solid var(--line)}
+.glist .gcell .gn{display:block;font-size:14px;overflow-wrap:anywhere}
+.glist .gcell .oppbtn{font-weight:500}
+.glist .gcell .gv{display:flex;gap:8px;align-items:baseline;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);white-space:nowrap}
+.glist .gcell .gv b{font-weight:600}
+.glist .gcell .gv b.plus{color:var(--plus)}.glist .gcell .gv b.minus{color:var(--minus)}
+.glist .gcell.me,.glist tbody tr:hover .gcell.me{background:var(--accent-soft)}
+.glist .gcell.me .gn{font-weight:900;color:var(--accent)}
+.glist .gdate small{display:block;font-family:"Zen Kaku Gothic New",sans-serif;font-size:11px}
 </style>
 </head>
 <body>
@@ -462,6 +476,10 @@ th{z-index:2;border-bottom:0;box-shadow:inset 0 -1px 0 var(--line)}   /* 固定�
       <div class="stgrid" id="stgrid"></div>
       <div class="strank" id="strank" hidden></div>
       <p class="stnote" id="stnote"></p>
+    </section>
+    <section class="awards" id="secPGames" aria-labelledby="pgh" hidden>
+      <h3 id="pgh">対局履歴 <span id="pgsub"></span></h3>
+      <div class="dtbox glist"><table class="vs"><thead><tr><th class="l">日付</th><th class="l">1位</th><th class="l">2位</th><th class="l">3位</th><th class="l">4位</th></tr></thead><tbody id="gtb"></tbody></table></div>
     </section>
     <section class="awards" id="secRec" aria-labelledby="rech">
       <h3 id="rech">戦績 <span>チーム順位の行と同じ内容</span></h3>
@@ -723,7 +741,7 @@ function openDlg(){ if(!dlg.open)dlg.showModal(); $("dclose").focus({preventScro
 /* ダイアログの中身を、チーム用(team=true)か個人用に切り替える */
 function dlgMode(team){
   ["secRec","secMem","secTStat"].forEach(id=>$(id).hidden=!team);
-  ["secPRec","secStat"].forEach(id=>$(id).hidden=team);
+  ["secPRec","secStat","secPGames"].forEach(id=>$(id).hidden=team);
   if(!team)$("secChart").hidden=true;
 }
 /* ---------- 詳細成績(和了率など) ----------
@@ -905,7 +923,24 @@ function openPlayer(id){
   $("dsub").innerHTML=(d.ti>=0?`<span>チーム <button type="button" data-t="${d.ti}" title="${esc(d.team)} の成績を見る">${esc(d.team)}</button></span>`:`<span>${d.team?esc(d.team):"チーム未登録"}</span>`)+`<span>個人順位 <b>${d.rank}</b>位</span>`;
   $("prtb").innerHTML=`<tr><td class="rank">${rankCell(d)}</td>${stats(d)}</tr>`;
   fillPlayerStat(S,d,lg);
+  renderGames(S,d);
   openDlg();
+}
+/* 対局履歴(個人ランキングと同じ形)。いま表示しているリーグ(全期間集計なら全リーグ)の対局から、この人の対局を新しい順に並べる。
+   1位から4位まで、全員の名前・終了時の点棒・獲得PTを出し、この人の欄に色を付ける。ほかの人の名前を押すと、その人の成績に替わる */
+const pts=v=>(v<0?"−":"")+String(Math.abs(Math.round(v))).replace(/\B(?=(\d{3})+$)/g,",");
+function renderGames(S,p){
+  const nm=new Map(D.map(d=>[d.id,d.name])),lgOf=new Map();
+  if(ALL)S.files.forEach((fs,k)=>fs.forEach(g=>{if(!lgOf.has(g))lgOf.set(g,S.leagues[k].name)}));
+  const list=GAMES.filter(([,seats])=>seats.some(s=>s[0]===p.id)).sort((a,b)=>a[0]<b[0]?1:a[0]>b[0]?-1:0);
+  $("pgsub").textContent=`${list.length}対局・新しい順`;
+  $("gtb").innerHTML=list.length?list.map(g=>{const [start,seats]=g;
+    return `<tr><td class="l gdate">${esc(start.slice(0,10).replace(/-/g,"/"))}${ALL&&lgOf.get(g)?`<small>${esc(lgOf.get(g))}</small>`:""}</td>`+seats.map(([id,name,pt,score])=>{
+      const me=id===p.id,n=esc(nm.get(id)||name);
+      return `<td class="l gcell${me?" me":""}"><span class="gn">${me?n:`<button type="button" class="oppbtn" data-p="${esc(id)}" title="${n} の成績を見る">${n}</button>`}</span>`+
+        `<span class="gv"><span class="gscore">${score==null?"—":pts(score)}</span><b class="${pt>=0?"plus":"minus"}">${f(pt,1)}</b></span></td>`}).join("")+"</tr>"}).join("")
+    :'<tr><td colspan="5" class="empty">対局がない</td></tr>';
+  $("gtb").closest(".glist").scrollTop=0;
 }
 /* 個人の詳細成績の欄。まだ読んでいなければ「読み込み中」と出し、読めたらこの欄だけ描き直す */
 function fillPlayerStat(S,d,lg){
