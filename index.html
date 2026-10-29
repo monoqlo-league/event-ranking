@@ -640,7 +640,7 @@ function load(view,tab,lg){
   const free=D.filter(d=>d.ti<0).length, title=evTitle(view);
   const people=NOGAMES&&S.roster?T.reduce((x,t)=>x+t.mem.length+t.idle.length,0):D.length;
   /* 見出しは 大会名、改行して -リーグ名-。終わったリーグには「終了」の印を重ねる(最後のリーグは「完了」の印) */
-  const stamp=!ALL&&finished(S,LG)===true?(LG===n-1?"完了":"終了"):"";
+  const stamp=ALL?(finished(S,n-1)===true?"完了":""):finished(S,LG)===true?(LG===n-1?"完了":"終了"):"";   // 全期間集計は、最後のリーグが終わったら「完了」
   $("ttl").innerHTML=`<span class="tt">`+(title?`<span>${esc(title)}</span> <span>ランキング</span>`:`<span>${ymLabel(view)}</span> <span>チーム戦ランキング</span>`)+
     (lgi.name?`<span class="tlg">-${esc(lgi.name)}-</span>`:"")+
     (stamp?`<img class="stamp" src="${encodeURIComponent(stamp)}.png" alt="${stamp}" width="180" height="180">`:"")+`</span>`;
