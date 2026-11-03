@@ -581,7 +581,7 @@ function leagueOf(S,k){
     teams=new Set(up.map(t=>t.name));
     up.forEach((t,i)=>{carry.set(t.name,carryOver(t.raw,lg.carry));seed.set(t.name,i)});
   }
-  const c=compute(games,S.roster,{teams,carry,seed,adj:k===0,min:lg.min||1,penalize:!pending&&finished(S,k)===true});
+  const c=compute(games,S.roster,{teams,carry,seed,adj:k===0,min:lg.min==null?1:lg.min,penalize:!pending&&finished(S,k)===true});
   return S.L[k]={games,players:c.players,teams:c.teams,pending,prov};
 }
 /* リーグ k が終わったか。スケジュールにある対局の数に、対局記録の数が届いたら、終わったとする。
@@ -666,7 +666,7 @@ function load(view,tab,lg){
     (NOGAMES?"":`<span>集計期間 <b>${a.replace(/-/g,"/")} – ${b.replace(/-/g,"/")}</b></span>`)+`<span>対局数 <b>${GAMES.length}</b></span>`+
     (S.roster?`<span>チーム <b>${T.length}</b></span>`:"")+`<span>参加者 <b>${people}</b>人</span>`+
     (S.roster&&LG&&!ALL?`<span>PTの持ち越し <b>${carryWord(lgi.carry)}</b></span>`:"")+
-    (S.roster&&!ALL?`<span>最低出場 <b>${lgi.min||1}</b>試合</span>`:"");
+    (S.roster&&!ALL?`<span>最低出場 <b>${lgi.min?lgi.min+"試合":"なし"}</b></span>`:"");
   showUpdated(view,LG,GAMES);
   const note=ALL?(NOGAMES?"":`全リーグ(${S.leagues.map(l=>l.name).join("・")})の対局をまとめた順位。PTの持ち越し(半減など)は使わず、各対局のPTをそのまま足している。チーム順位は、全チームを並べる(勝ち上がれなかったチームは、そのぶん対局数が少ない)。`)
     :!S.roster?`チーム表(${view}-master.csv)が見つからないため、チーム順位は出せない。個人順位だけを表示している。`
@@ -675,7 +675,7 @@ function load(view,tab,lg){
     :NOGAMES?`対局記録(${fname})がまだない。チームとメンバーだけを表示している。`
     :free?`チーム順位に含めていないプレイヤーが${free}人いる(チーム表に載っていない${LG?"、またはこのリーグに進んでいないチームの所属":""})。その人の成績は個人順位にだけ含めている。`:"";
   const pens=ALL?[]:T.filter(t=>t.pen);
-  const note2=pens.length?`最低出場試合数(${lgi.min||1}試合)に届かなかったメンバーがいるため、${pens.map(t=>t.name).join("・")} はこのリーグの最下位(${pens[0].rank}位)とした。`:"";
+  const note2=pens.length?`最低出場試合数(${lgi.min}試合)に届かなかったメンバーがいるため、${pens.map(t=>t.name).join("・")} はこのリーグの最下位(${pens[0].rank}位)とした。`:"";
   $("notice").textContent=[note,note2].filter(Boolean).join(" ");$("notice").hidden=!note&&!note2;
   $("month").value=view;
   if(dlg.open)dlg.close();
@@ -1338,7 +1338,7 @@ function toGames(text){
 }
 /* チーム表のCSV(チーム表作成ページの出力)。使うのは「大会名」「チーム名」「プレイヤー名」「プレイヤーID」「リーグ構成」の列。
    「リーグ構成」は 予選:12:0:5/セミファイナル:6:50:3/ファイナル:4:0:2 の形(名前:チーム数:持ち越しの%:最低出場試合数)。無ければ1次リーグだけ。
-   最低出場試合数が無い(以前の大会マスター)ときは 1 とする
+   最低出場試合数が無い(以前の大会マスター)ときは 1 とする。0 は「設けない」(ペナルティなし)
    「点数修正」の列があれば、その分を合計PTに足す */
 function toRoster(text){
   const rows=parseCSV(text.replace(/^﻿/,""));
@@ -1354,7 +1354,7 @@ function toRoster(text){
   const first=c=>c>=0?((rows.slice(1).find(r=>(r[c]||"").trim())||[])[c]||"").trim():"";
   R.title=first(ce);
   R.leagues=first(h.indexOf("リーグ構成")).split("/").map(x=>{const [name,teams,carry,min]=x.split(":");
-    return {name:(name||"").trim(),teams:Math.floor(+teams)||0,carry:Math.max(0,Math.min(100,+carry||0)),min:Math.max(1,Math.floor(+min)||1)}}).filter(l=>l.name);
+    return {name:(name||"").trim(),teams:Math.floor(+teams)||0,carry:Math.max(0,Math.min(100,+carry||0)),min:min==null||String(min).trim()===""?1:Math.max(0,Math.floor(+min)||0)}}).filter(l=>l.name);   // 無ければ1、0は「設けない」
   return R;
 }
 /* スケジュールのCSV(対局スケジュール作成ツール event-schedule の出力)。1行が1チーム。
